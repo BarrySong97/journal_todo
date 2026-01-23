@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm typecheck:*)",
+      "WebSearch",
+      "WebFetch(domain:tanstack.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(pnpm search:*)",
+      "Bash(npm search:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:electron-trpc.dev)",
+      "Bash(cat:*)",
+      "Bash(pnpm typecheck:node:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm remove:*)",
+      "Bash(pnpm add:*)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "WebFetch(domain:trpc.io)",
+      "Bash(pnpm dlx:*)",
+      "Bash(findstr:*)",
+      "Bash(find:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(pnpm rebuild:*)",
+      "Bash(pnpm typecheck:web:*)",
+      "WebFetch(domain:orm.drizzle.team)",
+      "Bash(node:*)",
+      "Bash(npm info:*)",
+      "Bash(pnpm db:generate:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(pnpm tsc:*)",
+      "Bash(pnpm drizzle-kit generate)",
+      "Bash(pnpm build:unpack:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm run build)",
+      "Bash(pnpm list)",
+      "Bash(test -f \"src/components/ui/checkbox.tsx\")"
+    ]
+  }
+}
