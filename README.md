@@ -1,4 +1,7 @@
-# React + TypeScript + Vite + shadcn/ui
+# Tauri + React + Typescript
 
-This is a template for a new Vite project with React, TypeScript, and shadcn/ui.
-# journal_todo
+This template should help get you started developing with Tauri, React and Typescript in Vite.
+
+## Recommended IDE Setup
+
+- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm turbo build --filter=@journal-todo/web",
+  "outputDirectory": "packages/web/dist",
+  "installCommand": "pnpm install",
+  "framework": "vite"
+}

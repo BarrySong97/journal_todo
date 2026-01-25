@@ -1,0 +1,18 @@
+{
+  "name": "@journal-todo/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev:tauri": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@journal-todo/web": "workspace:*",
+    "@journal-todo/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
