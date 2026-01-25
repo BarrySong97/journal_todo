@@ -1,6 +1,6 @@
 "use client"
 
-import { Moon, Sun, Check } from "lucide-react"
+import { Moon, Sun, Check, ChevronDown } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useJournal } from "@/hooks/useJournal"
 import { useTheme } from "@/hooks/useTheme"
@@ -14,6 +14,13 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Kbd } from "@/components/ui/kbd"
 import type { Workspace } from "@/lib/types/journal"
 
@@ -66,9 +73,35 @@ export function JournalFooter({ className, onManageWorkspace }: JournalFooterPro
       >
         {/* Left: Current Workspace */}
         <div className="flex-1">
-          <span className="text-sm font-medium text-muted-foreground">
-            {currentWorkspace?.name ?? "Journal"}
-          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent">
+              <span className="max-w-[200px] truncate">
+                {currentWorkspace?.name ?? "Journal"}
+              </span>
+              <ChevronDown className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" sideOffset={6} className="min-w-56">
+              {workspaceList.map((workspace) => (
+                <DropdownMenuItem
+                  key={workspace.id}
+                  onClick={() => handleWorkspaceChange(workspace.id)}
+                >
+                  <span className="flex-1 truncate">{workspace.name}</span>
+                  {workspace.id === currentWorkspaceId && (
+                    <Check className="h-4 w-4" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+              {onManageWorkspace && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onManageWorkspace}>
+                    Manage workspaces
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Center: Kbd Hint */}

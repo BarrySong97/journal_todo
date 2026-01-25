@@ -34,7 +34,7 @@ export function DateNavigation({ className }: DateNavigationProps) {
     }
   };
   return (
-    <div className={cn("flex items-center ml-2 ", className)} >
+    <div className={cn("flex items-center ml-2 ", className)}>
       {/* Left side: Previous day */}
       <Button
         variant="ghost"
@@ -48,7 +48,7 @@ export function DateNavigation({ className }: DateNavigationProps) {
       <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
         <PopoverTrigger
           className={cn(
-            "h-7 px-2 hover:bg-accent text-sm rounded-md transition-colors",
+            "h-7 px-2 hover:bg-accent hover:text-foreground text-sm rounded-md transition-colors",
             isToday ? "text-primary font-medium" : "text-muted-foreground"
           )}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
@@ -65,6 +65,16 @@ export function DateNavigation({ className }: DateNavigationProps) {
         </PopoverContent>
       </Popover>
       {/* Right side: Next day */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setCurrentDate(new Date())}
+        disabled={isToday}
+        className="text-muted-foreground hover:text-foreground hover:bg-accent px-2"
+      >
+        今天
+      </Button>
+
       <Button
         variant="ghost"
         size="sm"
