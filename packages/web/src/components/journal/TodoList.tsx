@@ -25,6 +25,7 @@ export function TodoList() {
     activeTodoId,
     focusTodo,
     addTodo,
+    updateTodoText,
     deleteTodo,
     moveTodo,
     updateTodoLevel,

@@ -1,9 +1,9 @@
 import { useRef, useCallback } from "react"
 
 export function useTodoFocus() {
-  const todoRefs = useRef<Record<string, HTMLInputElement>>({})
+  const todoRefs = useRef<Record<string, HTMLTextAreaElement>>({})
 
-  const setTodoRef = useCallback((todoId: string, element: HTMLInputElement | null) => {
+  const setTodoRef = useCallback((todoId: string, element: HTMLTextAreaElement | null) => {
     if (element) {
       todoRefs.current[todoId] = element
     } else {

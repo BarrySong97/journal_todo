@@ -5,10 +5,10 @@ import type { TodoItem, JournalPage, TodoStatus, Workspace } from "@/lib/types/j
 import { getTodayKey, formatDateKey } from "@/lib/utils/dateUtils"
 
 const normalizeStatus = (status: unknown): TodoStatus =>
-  status === "todo" || status === "doing" || status === "done" ? status : "todo"
+  status === "done" ? "done" : "todo"
 
 const isTodoStatus = (status: unknown): status is TodoStatus =>
-  status === "todo" || status === "doing" || status === "done"
+  status === "todo" || status === "done"
 
 const isBlankText = (value: unknown) =>
   typeof value !== "string" || value.trim().length === 0
@@ -86,7 +86,7 @@ interface JournalStore {
   getOrCreatePage: (dateKey: string) => JournalPage
 
   // Todo CRUD actions
-  addTodo: (text?: string, afterTodoId?: string, dateKey?: string) => string // returns new todo id
+  addTodo: (text?: string, afterTodoId?: string, dateKey?: string, level?: number) => string // returns new todo id
   updateTodoText: (todoId: string, text: string, dateKey?: string) => void
   updateTodoLevel: (todoId: string, direction: "indent" | "outdent", dateKey?: string) => void
   toggleTodo: (todoId: string, dateKey?: string) => void
@@ -284,13 +284,14 @@ export const useJournalStore = create<JournalStore>()(
         },
 
         // Todo CRUD
-        addTodo: (text = "", afterTodoId?: string, dateKey?: string) => {
+        addTodo: (text = "", afterTodoId?: string, dateKey?: string, level?: number) => {
           const { currentWorkspaceId, workspaces, getOrCreatePage } = get()
           const workspace = workspaces[currentWorkspaceId]
           if (!workspace) return ""
 
           const targetDateKey = dateKey || workspace.currentDateKey
           const page = workspace.pages[targetDateKey] || getOrCreatePage(targetDateKey)
+          const nextLevel = Math.max(0, Math.min(3, level ?? 0))
 
           const newTodo: TodoItem = {
             id: uuidv4(),
@@ -298,7 +299,7 @@ export const useJournalStore = create<JournalStore>()(
             status: "todo",
             tags: extractTags(text),
             order: 0,
-            level: 0,
+            level: nextLevel,
             createdAt: new Date(),
             updatedAt: new Date(),
           }
@@ -399,12 +400,7 @@ export const useJournalStore = create<JournalStore>()(
 
           const currentTodo = page.todos[currentIndex]
           const currentStatus = normalizeStatus(currentTodo.status)
-          const nextStatus: TodoStatus =
-            currentStatus === "todo"
-              ? "doing"
-              : currentStatus === "doing"
-                ? "done"
-                : "todo"
+          const nextStatus: TodoStatus = currentStatus === "done" ? "todo" : "done"
 
           if (nextStatus === "done") {
             const currentLevel = currentTodo.level
@@ -421,50 +417,6 @@ export const useJournalStore = create<JournalStore>()(
               ? { ...todo, status: nextStatus, updatedAt: new Date() }
               : todo
           )
-
-          const findParentIndex = (startIndex: number) => {
-            const startLevel = updatedTodos[startIndex].level
-
-            for (let i = startIndex - 1; i >= 0; i -= 1) {
-              if (updatedTodos[i].level < startLevel) {
-                return i
-              }
-            }
-
-            return -1
-          }
-
-          const hasDoingDescendant = (parentIndex: number) => {
-            const parentLevel = updatedTodos[parentIndex].level
-
-            for (let i = parentIndex + 1; i < updatedTodos.length; i += 1) {
-              if (updatedTodos[i].level <= parentLevel) break
-              if (normalizeStatus(updatedTodos[i].status) === "doing") return true
-            }
-
-            return false
-          }
-
-          const updateStatusAt = (index: number, status: TodoStatus) => {
-            if (updatedTodos[index].status === status) return
-            updatedTodos[index] = { ...updatedTodos[index], status, updatedAt: new Date() }
-          }
-
-          if (nextStatus === "doing") {
-            let parentIndex = findParentIndex(currentIndex)
-            while (parentIndex !== -1) {
-              updateStatusAt(parentIndex, "doing")
-              parentIndex = findParentIndex(parentIndex)
-            }
-          } else if (currentStatus === "doing") {
-            let parentIndex = findParentIndex(currentIndex)
-            while (parentIndex !== -1) {
-              if (!hasDoingDescendant(parentIndex) && updatedTodos[parentIndex].status === "doing") {
-                updateStatusAt(parentIndex, "todo")
-              }
-              parentIndex = findParentIndex(parentIndex)
-            }
-          }
 
           const updatedPage: JournalPage = {
             ...page,

@@ -5,7 +5,8 @@ interface UseTodoKeyboardProps {
   todos: TodoItem[]
   activeTodoId: string | null
   focusTodo: (todoId: string, position?: "start" | "end") => void
-  addTodo: (text?: string, afterTodoId?: string) => string
+  addTodo: (text?: string, afterTodoId?: string, dateKey?: string, level?: number) => string
+  updateTodoText: (todoId: string, text: string) => void
   deleteTodo: (todoId: string) => void
   moveTodo: (todoId: string, direction: "up" | "down") => void
   updateTodoLevel: (todoId: string, direction: "indent" | "outdent") => void
@@ -17,14 +18,53 @@ export function useTodoKeyboard({
   activeTodoId,
   focusTodo,
   addTodo,
+  updateTodoText,
   deleteTodo,
   moveTodo,
   updateTodoLevel,
   setActiveTodoId,
 }: UseTodoKeyboardProps) {
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>, todoId: string) => {
+    (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => {
       const currentIndex = todos.findIndex((todo) => todo.id === todoId)
+      const mergeToPreviousSibling = (currentText: string) => {
+        if (currentIndex <= 0) return false
+
+        const currentTodo = todos[currentIndex]
+        let prevSiblingIndex = -1
+
+        for (let i = currentIndex - 1; i >= 0; i -= 1) {
+          if (todos[i].level === currentTodo.level) {
+            prevSiblingIndex = i
+            break
+          }
+          if (todos[i].level < currentTodo.level) {
+            break
+          }
+        }
+
+        if (prevSiblingIndex === -1) return false
+
+        const prevTodo = todos[prevSiblingIndex]
+        const prevText = prevTodo.text ?? ""
+        const cursorPosition = prevText.length
+        const merged = prevText + currentText
+        updateTodoText(prevTodo.id, merged)
+        deleteTodo(todoId)
+        setActiveTodoId(prevTodo.id)
+
+        setTimeout(() => {
+          const ref = document.querySelector(
+            `[data-todo-id="${prevTodo.id}"] textarea`
+          ) as HTMLTextAreaElement | null
+          if (ref) {
+            ref.focus()
+            ref.setSelectionRange(cursorPosition, cursorPosition)
+          }
+        }, 0)
+
+        return true
+      }
 
       switch (e.key) {
         case "ArrowUp":
@@ -59,18 +99,58 @@ export function useTodoKeyboard({
 
         case "Enter":
           e.preventDefault()
-          // Create new todo below current one
-          const newTodoId = addTodo("", todoId)
+          // Create new todo after current subtree at same level
+          if (currentIndex === -1) return
+          const input = e.target as HTMLTextAreaElement
+          const currentText = input.value
+          const selectionStart = input.selectionStart ?? currentText.length
+          const selectionEnd = input.selectionEnd ?? selectionStart
+          const shouldSplit = selectionStart > 0 && selectionStart < currentText.length
+          const currentTodo = todos[currentIndex]
+          let insertIndex = currentIndex
+
+          for (let i = currentIndex + 1; i < todos.length; i += 1) {
+            if (todos[i].level > currentTodo.level) {
+              insertIndex = i
+            } else {
+              break
+            }
+          }
+
+          const afterTodoId = todos[insertIndex]?.id ?? todoId
+          let newTodoText = ""
+
+          if (shouldSplit) {
+            const beforeText = currentText.slice(0, selectionStart)
+            const afterText = currentText.slice(selectionEnd)
+            if (beforeText !== currentText) {
+              updateTodoText(todoId, beforeText)
+            }
+            newTodoText = afterText
+          }
+
+          const newTodoId = addTodo(newTodoText, afterTodoId, undefined, currentTodo.level)
           setActiveTodoId(newTodoId)
           // Small delay to ensure the new todo is rendered before focusing
-          setTimeout(() => focusTodo(newTodoId), 0)
+          setTimeout(
+            () => focusTodo(newTodoId, newTodoText.length > 0 ? "start" : undefined),
+            0
+          )
           break
 
         case "Delete": {
+          const input = e.target as HTMLTextAreaElement
+          const deleteIsAtStart = input.selectionStart === 0 && input.selectionEnd === 0
+          const currentText = input.value
+
+          // Delete at start with text: merge to previous sibling
+          if (deleteIsAtStart && currentText.length > 0) {
+            e.preventDefault()
+            if (mergeToPreviousSibling(currentText)) return
+          }
+
           // Smart delete - only if at beginning of empty todo and there are multiple todos
-          const input = e.target as HTMLInputElement
           const deleteIsEmpty = input.value.trim() === ""
-          const deleteIsAtStart = input.selectionStart === 0
 
           if (deleteIsEmpty && deleteIsAtStart && todos.length > 1) {
             e.preventDefault()
@@ -93,9 +173,16 @@ export function useTodoKeyboard({
 
         case "Backspace": {
           // Similar to Delete but when at beginning of todo
-          const inputEl = e.target as HTMLInputElement
+          const inputEl = e.target as HTMLTextAreaElement
+          const backspaceIsAtStart = inputEl.selectionStart === 0 && inputEl.selectionEnd === 0
+          const currentText = inputEl.value
+
+          if (backspaceIsAtStart && currentText.length > 0) {
+            e.preventDefault()
+            if (mergeToPreviousSibling(currentText)) return
+          }
+
           const backspaceIsEmpty = inputEl.value.trim() === ""
-          const backspaceIsAtStart = inputEl.selectionStart === 0
 
           if (backspaceIsEmpty && backspaceIsAtStart && currentIndex > 0 && todos.length > 1) {
             e.preventDefault()
@@ -124,7 +211,17 @@ export function useTodoKeyboard({
           break
       }
     },
-    [todos, activeTodoId, focusTodo, addTodo, deleteTodo, moveTodo, updateTodoLevel, setActiveTodoId]
+    [
+      todos,
+      activeTodoId,
+      focusTodo,
+      addTodo,
+      updateTodoText,
+      deleteTodo,
+      moveTodo,
+      updateTodoLevel,
+      setActiveTodoId,
+    ]
   )
 
   return { handleKeyDown }

@@ -3,13 +3,11 @@ import { isTauri } from "@journal-todo/shared"
 import { invoke } from "@tauri-apps/api/core"
 import { Titlebar } from "@/components/Titlebar"
 import { JournalApp } from "@/components/journal/JournalApp"
-import { Agentation } from "agentation";
 import { DateNavigation } from "./components/journal/DateNavigation"
 
 
 export function App() {
   const [isDesktop, setIsDesktop] = useState(false)
-  const [isManageOpen, setIsManageOpen] = useState(false)
 
   useEffect(() => {
     setIsDesktop(isTauri())
@@ -30,22 +28,15 @@ export function App() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
 
-  const handleManageWorkspace = () => {
-    setIsManageOpen(true)
-  }
-
   return (
     <div className="h-screen overflow-hidden flex flex-col ">
       <header className="flex justify-between items-center h-9  " data-tauri-drag-region>
 
         <DateNavigation />
-        {isDesktop && <Titlebar onManageWorkspace={handleManageWorkspace} />}
+        {isDesktop && <Titlebar />}
       </header>
 
-      <JournalApp
-        isManageOpen={isManageOpen}
-        onManageOpenChange={setIsManageOpen}
-      />
+      <JournalApp />
       {/* {import.meta.env.DEV && <Agentation />} */}
 
     </div>
