@@ -90,7 +90,7 @@ interface JournalStore {
   addTodo: (text?: string, afterTodoId?: string, dateKey?: string, level?: number) => string // returns new todo id
   updateTodoText: (todoId: string, text: string, dateKey?: string) => void
   updateTodoLevel: (todoId: string, direction: "indent" | "outdent", dateKey?: string) => void
-  toggleTodo: (todoId: string, dateKey?: string) => void
+  toggleTodo: (todoId: string, dateKey?: string) => boolean // returns true if toggled, false if blocked by incomplete children
   deleteTodo: (todoId: string, dateKey?: string) => void
   moveTodo: (todoId: string, direction: "up" | "down", dateKey?: string) => void
   getTodo: (todoId: string, dateKey?: string) => TodoItem | undefined
@@ -396,14 +396,14 @@ export const useJournalStore = create<JournalStore>()(
         toggleTodo: (todoId: string, dateKey?: string) => {
           const { currentWorkspaceId, workspaces } = get()
           const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
+          if (!workspace) return false
 
           const targetDateKey = dateKey || workspace.currentDateKey
           const page = workspace.pages[targetDateKey]
-          if (!page) return
+          if (!page) return false
 
           const currentIndex = page.todos.findIndex((todo) => todo.id === todoId)
-          if (currentIndex === -1) return
+          if (currentIndex === -1) return false
 
           const currentTodo = page.todos[currentIndex]
           const currentStatus = normalizeStatus(currentTodo.status)
@@ -414,7 +414,7 @@ export const useJournalStore = create<JournalStore>()(
             for (let i = currentIndex + 1; i < page.todos.length; i += 1) {
               if (page.todos[i].level <= currentLevel) break
               if (normalizeStatus(page.todos[i].status) !== "done") {
-                return
+                return false
               }
             }
           }
@@ -443,6 +443,8 @@ export const useJournalStore = create<JournalStore>()(
               [currentWorkspaceId]: updatedWorkspace,
             },
           })
+
+          return true
         },
 
         deleteTodo: (todoId: string, dateKey?: string) => {

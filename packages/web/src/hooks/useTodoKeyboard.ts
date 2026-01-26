@@ -110,7 +110,34 @@ export function useTodoKeyboard({
           }
           break
 
-        case "Enter":
+        case "Enter": {
+          if (e.ctrlKey || e.metaKey) {
+            // Ctrl+Enter or Cmd+Enter: Toggle todo status
+            e.preventDefault()
+            const currentTodo = todos[currentIndex]
+            if (currentTodo) {
+              // Save cursor position
+              const input = e.target as HTMLTextAreaElement
+              const cursorStart = input.selectionStart
+              const cursorEnd = input.selectionEnd
+              
+              // Use a callback to toggle after the current event
+              setTimeout(() => {
+                const toggleEvent = new CustomEvent("toggle-todo", {
+                  detail: { todoId: currentTodo.id },
+                })
+                window.dispatchEvent(toggleEvent)
+                
+                // Restore cursor position after toggle
+                setTimeout(() => {
+                  input.focus()
+                  input.setSelectionRange(cursorStart, cursorEnd)
+                }, 0)
+              }, 0)
+            }
+            break
+          }
+          // Regular Enter handling below
           e.preventDefault()
           // Create new todo after current subtree at same level
           if (currentIndex === -1) return
@@ -150,6 +177,7 @@ export function useTodoKeyboard({
             0
           )
           break
+        }
 
         case "Delete": {
           const input = e.target as HTMLTextAreaElement

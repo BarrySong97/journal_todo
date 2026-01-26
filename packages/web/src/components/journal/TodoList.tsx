@@ -6,6 +6,7 @@ import { TodoItem } from "./TodoItem"
 import { useJournal } from "@/hooks/useJournal"
 import { useTodoFocus } from "@/hooks/useTodoFocus"
 import { useTodoKeyboard } from "@/hooks/useTodoKeyboard"
+import { Toast } from "@/components/ui/toast"
 
 const isInteractiveTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false
@@ -44,10 +45,13 @@ export function TodoList() {
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastOpen, setToastOpen] = useState(false)
   const { setTodoRef, focusTodo } = useTodoFocus()
   const dragMovedRef = useRef(false)
   const listRef = useRef<HTMLDivElement | null>(null)
   const prevWorkspaceIdRef = useRef<string | null>(null)
+  const prevDateRef = useRef<string | null>(null)
   const selectedTodoSet = useMemo(() => new Set(selectedTodoIds), [selectedTodoIds])
 
   const clearSelection = useCallback(() => {
@@ -130,14 +134,15 @@ export function TodoList() {
   })
 
   useEffect(() => {
-    if (currentPage.todos.length > 0 && !activeTodoId) {
-      const firstTodo = currentPage.todos[0]
-      setTimeout(() => {
-        setActiveTodoId(firstTodo.id)
-        focusTodo(firstTodo.id)
-      }, 0)
-    }
-  }, [currentPage.date, currentPage.todos, activeTodoId, focusTodo])
+    if (prevDateRef.current === currentPage.date) return
+    prevDateRef.current = currentPage.date
+    if (currentPage.todos.length === 0) return
+    const firstTodo = currentPage.todos[0]
+    setTimeout(() => {
+      setActiveTodoId(firstTodo.id)
+      focusTodo(firstTodo.id)
+    }, 0)
+  }, [currentPage.date, currentPage.todos, focusTodo])
 
   useEffect(() => {
     const prevWorkspaceId = prevWorkspaceIdRef.current
@@ -243,6 +248,30 @@ export function TodoList() {
     return () => window.removeEventListener("keydown", handleCopy)
   }, [selectedTodoIds.length, copySelectedTodos])
 
+  useEffect(() => {
+    const handleToggleTodo = (event: Event) => {
+      const customEvent = event as CustomEvent<{ todoId: string }>
+      if (customEvent.detail?.todoId) {
+        const success = toggleTodo(customEvent.detail.todoId)
+        if (!success) {
+          setToastMessage("Please complete all sub-todos first")
+          setToastOpen(true)
+        }
+      }
+    }
+
+    window.addEventListener("toggle-todo", handleToggleTodo)
+    return () => window.removeEventListener("toggle-todo", handleToggleTodo)
+  }, [toggleTodo])
+
+  useEffect(() => {
+    if (!toastOpen) return
+    const timer = window.setTimeout(() => {
+      setToastOpen(false)
+    }, 2500)
+    return () => window.clearTimeout(timer)
+  }, [toastOpen])
+
   const selectionRect = useMemo(() => {
     if (!dragStart || !dragCurrent || !isDragging) return null
     if (!dragMovedRef.current) return null
@@ -283,6 +312,7 @@ export function TodoList() {
           inputRef={setTodoRef}
         />
       ))}
+      <Toast open={toastOpen} message={toastMessage} />
     </div>
   )
 }

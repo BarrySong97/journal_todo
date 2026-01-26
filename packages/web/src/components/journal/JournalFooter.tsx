@@ -1,6 +1,6 @@
 "use client"
 
-import { Moon, Sun, Check, ChevronDown, RotateCcw } from "lucide-react"
+import { Moon, Sun, Check, ChevronDown, RotateCcw, CircleHelp } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -26,6 +26,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Kbd } from "@/components/ui/kbd"
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import {
   Dialog,
@@ -81,6 +88,8 @@ export function JournalFooter({
     createWorkspace,
     renameWorkspace,
     deleteWorkspace,
+    goToNextDay,
+    goToPreviousDay,
   } = useJournal()
 
   const { isDark, toggleTheme } = useTheme()
@@ -262,6 +271,23 @@ export function JournalFooter({
         return
       }
 
+      if (event.altKey && !event.ctrlKey && !event.metaKey) {
+        switch (key) {
+          case "arrowleft": {
+            event.preventDefault()
+            goToPreviousDay()
+            return
+          }
+          case "arrowright": {
+            event.preventDefault()
+            goToNextDay()
+            return
+          }
+          default:
+            break
+        }
+      }
+
       if (isTyping) return
 
       if (metaOrCtrl && event.altKey) {
@@ -314,6 +340,8 @@ export function JournalFooter({
     isCommandOpen,
     isWorkspaceSwitcherOpen,
     recentWorkspaceList,
+    goToNextDay,
+    goToPreviousDay,
   ])
 
   useEffect(() => {
@@ -429,6 +457,96 @@ export function JournalFooter({
 
         {/* Right: Theme Toggle */}
         <div className="flex-1 flex justify-end">
+          <Popover>
+            <PopoverTrigger>
+              <button
+                className="p-1.5 rounded-full hover:bg-accent transition-colors"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                title="Shortcuts"
+              >
+                <CircleHelp className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72">
+              <PopoverHeader>
+                <PopoverTitle>Keyboard shortcuts</PopoverTitle>
+              </PopoverHeader>
+              <div className="mt-2 grid gap-2">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Command palette</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>K</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Switch workspace</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Tab</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Previous day</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Alt</Kbd>
+                    <Kbd>←</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Next day</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Alt</Kbd>
+                    <Kbd>→</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Toggle todo status</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Enter</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Indent todo</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Tab</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Outdent todo</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Shift</Kbd>
+                    <Kbd>Tab</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">New workspace</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Alt</Kbd>
+                    <Kbd>N</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Rename workspace</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Alt</Kbd>
+                    <Kbd>R</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Delete workspace</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Alt</Kbd>
+                    <Kbd>⌫</Kbd>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           <button
             onClick={toggleTheme}
             className="p-1.5 rounded-full hover:bg-accent transition-colors"
