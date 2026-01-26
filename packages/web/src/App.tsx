@@ -4,14 +4,20 @@ import { invoke } from "@tauri-apps/api/core"
 import { Titlebar } from "@/components/Titlebar"
 import { JournalApp } from "@/components/journal/JournalApp"
 import { DateNavigation } from "./components/journal/DateNavigation"
+import { useJournal } from "@/hooks/useJournal"
 
 
 export function App() {
+  const { goToToday } = useJournal()
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
     setIsDesktop(isTauri())
   }, [])
+
+  useEffect(() => {
+    goToToday()
+  }, [goToToday])
 
   // F12 to open devtools in Tauri
   useEffect(() => {

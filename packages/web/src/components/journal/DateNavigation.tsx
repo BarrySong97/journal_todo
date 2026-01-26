@@ -40,7 +40,7 @@ export function DateNavigation({ className }: DateNavigationProps) {
         variant="ghost"
         size="sm"
         onClick={goToPreviousDay}
-        className="text-muted-foreground hover:text-foreground hover:bg-accent px-2"
+        className="text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-accent/50 px-2"
       >
         <ChevronLeft className="h-4 w-4" />
       </Button>
@@ -48,7 +48,7 @@ export function DateNavigation({ className }: DateNavigationProps) {
       <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
         <PopoverTrigger
           className={cn(
-            "h-7 px-2 hover:bg-accent hover:text-foreground text-sm rounded-md transition-colors",
+            "h-7 px-2 hover:bg-accent hover:text-foreground dark:hover:bg-accent/50 text-sm rounded-md transition-colors",
             isToday ? "text-primary font-medium" : "text-muted-foreground"
           )}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
@@ -70,7 +70,7 @@ export function DateNavigation({ className }: DateNavigationProps) {
         size="sm"
         onClick={() => setCurrentDate(new Date())}
         disabled={isToday}
-        className="text-muted-foreground hover:text-foreground hover:bg-accent px-2"
+        className="text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-accent/50 px-2"
       >
         今天
       </Button>
@@ -79,7 +79,7 @@ export function DateNavigation({ className }: DateNavigationProps) {
         variant="ghost"
         size="sm"
         onClick={goToNextDay}
-        className="text-muted-foreground hover:text-foreground hover:bg-accent px-2"
+        className="text-muted-foreground hover:text-foreground hover:bg-accent dark:hover:bg-accent/50 px-2"
       >
         <ChevronRight className="h-4 w-4" />
       </Button>

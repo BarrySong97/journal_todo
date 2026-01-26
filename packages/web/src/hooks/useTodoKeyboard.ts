@@ -11,6 +11,8 @@ interface UseTodoKeyboardProps {
   moveTodo: (todoId: string, direction: "up" | "down") => void
   updateTodoLevel: (todoId: string, direction: "indent" | "outdent") => void
   setActiveTodoId: (todoId: string | null) => void
+  selectedTodoIds: string[]
+  copySelectedTodos: () => void
 }
 
 export function useTodoKeyboard({
@@ -23,6 +25,8 @@ export function useTodoKeyboard({
   moveTodo,
   updateTodoLevel,
   setActiveTodoId,
+  selectedTodoIds,
+  copySelectedTodos,
 }: UseTodoKeyboardProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => {
@@ -67,6 +71,15 @@ export function useTodoKeyboard({
       }
 
       switch (e.key) {
+        case "c": {
+          if ((e.metaKey || e.ctrlKey) && selectedTodoIds.length > 0) {
+            const input = e.target as HTMLTextAreaElement
+            if (input.selectionStart !== input.selectionEnd) break
+            e.preventDefault()
+            copySelectedTodos()
+          }
+          break
+        }
         case "ArrowUp":
           e.preventDefault()
           if (e.altKey && e.shiftKey) {
@@ -221,6 +234,8 @@ export function useTodoKeyboard({
       moveTodo,
       updateTodoLevel,
       setActiveTodoId,
+      selectedTodoIds,
+      copySelectedTodos,
     ]
   )
 

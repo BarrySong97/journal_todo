@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 interface TodoItemProps {
   todo: TodoItemType
   isActive: boolean
+  isSelected: boolean
   onTextChange: (todoId: string, text: string) => void
   onToggle: (todoId: string) => void
   onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => void
@@ -19,6 +20,7 @@ interface TodoItemProps {
 export function TodoItem({
   todo,
   isActive,
+  isSelected,
   onTextChange,
   onToggle,
   onKeyDown,
@@ -65,7 +67,11 @@ export function TodoItem({
       data-todo-id={todo.id}
       className={cn(
         "flex items-start gap-3 group py-2 px-3 rounded-md transition-colors",
-        isActive ? "bg-accent/50" : "hover:bg-accent/30"
+        isSelected
+          ? "bg-accent/60"
+          : isActive
+            ? "bg-accent/50"
+            : "hover:bg-accent/30"
       )}
       style={{
         paddingLeft: `${12 + todo.level * 24}px`,

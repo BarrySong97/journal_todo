@@ -5,6 +5,7 @@ import { getTodayKey } from "@/lib/utils/dateUtils"
 export function useJournal() {
   const currentWorkspaceId = useJournalStore((state) => state.currentWorkspaceId)
   const workspaceOrder = useJournalStore((state) => state.workspaceOrder)
+  const workspaceRecentOrder = useJournalStore((state) => state.workspaceRecentOrder)
   const workspaces = useJournalStore((state) => state.workspaces)
   const setCurrentWorkspace = useJournalStore((state) => state.setCurrentWorkspace)
   const createWorkspace = useJournalStore((state) => state.createWorkspace)
@@ -33,6 +34,7 @@ export function useJournal() {
   return {
     currentWorkspaceId,
     workspaceOrder,
+    workspaceRecentOrder,
     workspaces,
     currentWorkspace,
     currentDateKey,

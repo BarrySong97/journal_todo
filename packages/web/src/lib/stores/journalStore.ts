@@ -67,6 +67,7 @@ interface JournalStore {
   // State
   currentWorkspaceId: string
   workspaceOrder: string[]
+  workspaceRecentOrder: string[]
   workspaces: Record<string, Workspace>
 
   // Workspace actions
@@ -105,24 +106,27 @@ export const useJournalStore = create<JournalStore>()(
         // Initial state
         currentWorkspaceId: defaultWorkspace.id,
         workspaceOrder: [defaultWorkspace.id],
+        workspaceRecentOrder: [defaultWorkspace.id],
         workspaces: {
           [defaultWorkspace.id]: defaultWorkspace,
         },
 
         // Workspace actions
         setCurrentWorkspace: (workspaceId: string) => {
-          const { workspaces } = get()
+          const { workspaces, workspaceRecentOrder } = get()
           if (!workspaces[workspaceId]) return
-          set({ currentWorkspaceId: workspaceId })
+          const nextRecent = [workspaceId, ...workspaceRecentOrder.filter((id) => id !== workspaceId)]
+          set({ currentWorkspaceId: workspaceId, workspaceRecentOrder: nextRecent })
         },
 
         createWorkspace: (name?: string) => {
-          const { workspaces, workspaceOrder } = get()
+          const { workspaces, workspaceOrder, workspaceRecentOrder } = get()
           const trimmedName = name?.trim()
           const workspaceName = trimmedName && trimmedName.length > 0
             ? trimmedName
             : `Workspace ${workspaceOrder.length + 1}`
           const newWorkspace = buildWorkspace(workspaceName)
+          const nextRecent = [newWorkspace.id, ...workspaceRecentOrder.filter((id) => id !== newWorkspace.id)]
 
           set({
             workspaces: {
@@ -130,6 +134,7 @@ export const useJournalStore = create<JournalStore>()(
               [newWorkspace.id]: newWorkspace,
             },
             workspaceOrder: [...workspaceOrder, newWorkspace.id],
+            workspaceRecentOrder: nextRecent,
             currentWorkspaceId: newWorkspace.id,
           })
 
@@ -156,11 +161,12 @@ export const useJournalStore = create<JournalStore>()(
         },
 
         deleteWorkspace: (workspaceId: string) => {
-          const { workspaces, workspaceOrder, currentWorkspaceId } = get()
+          const { workspaces, workspaceOrder, workspaceRecentOrder, currentWorkspaceId } = get()
           if (!workspaces[workspaceId]) return
           if (workspaceOrder.length <= 1) return
 
           const nextOrder = workspaceOrder.filter((id) => id !== workspaceId)
+          const nextRecentOrder = workspaceRecentOrder.filter((id) => id !== workspaceId)
           const nextWorkspaces = { ...workspaces }
           delete nextWorkspaces[workspaceId]
 
@@ -172,6 +178,7 @@ export const useJournalStore = create<JournalStore>()(
           set({
             workspaces: nextWorkspaces,
             workspaceOrder: nextOrder,
+            workspaceRecentOrder: nextRecentOrder.length > 0 ? nextRecentOrder : nextOrder,
             currentWorkspaceId: nextCurrent,
           })
         },
@@ -791,9 +798,9 @@ export const useJournalStore = create<JournalStore>()(
     },
     {
       name: "journal-storage",
-      version: 7,
+      version: 8,
       migrate: (state, version) => {
-        if (version >= 7) return state as JournalStore
+        if (version >= 8) return state as JournalStore
 
         const persistedState = state as Partial<JournalStore> & {
           pages?: Record<string, JournalPage>
@@ -807,6 +814,7 @@ export const useJournalStore = create<JournalStore>()(
           return {
             currentWorkspaceId: persistedState.currentWorkspaceId,
             workspaceOrder: order,
+            workspaceRecentOrder: persistedState.workspaceRecentOrder ?? order,
             workspaces: persistedState.workspaces,
           } as JournalStore
         }
@@ -821,6 +829,7 @@ export const useJournalStore = create<JournalStore>()(
         return {
           currentWorkspaceId: defaultWorkspace.id,
           workspaceOrder: [defaultWorkspace.id],
+          workspaceRecentOrder: [defaultWorkspace.id],
           workspaces: {
             [defaultWorkspace.id]: defaultWorkspace,
           },

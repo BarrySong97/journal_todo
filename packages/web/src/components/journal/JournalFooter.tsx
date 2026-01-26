@@ -75,6 +75,7 @@ export function JournalFooter({
   const {
     workspaces,
     workspaceOrder,
+    workspaceRecentOrder,
     currentWorkspaceId,
     setCurrentWorkspace,
     createWorkspace,
@@ -88,6 +89,9 @@ export function JournalFooter({
   const [isRenameOpen, setIsRenameOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [shouldRestoreCommand, setShouldRestoreCommand] = useState(false)
+  const [isWorkspaceSwitcherOpen, setIsWorkspaceSwitcherOpen] = useState(false)
+  const [workspaceSwitchList, setWorkspaceSwitchList] = useState<string[]>([])
+  const [workspaceSwitchIndex, setWorkspaceSwitchIndex] = useState(0)
 
   const workspaceList = workspaceOrder
     .map((id) => workspaces[id])
@@ -98,6 +102,11 @@ export function JournalFooter({
     () => workspaceOrder.findIndex((id) => id === currentWorkspaceId),
     [workspaceOrder, currentWorkspaceId]
   )
+  const recentWorkspaceList = useMemo(() => {
+    const recent = workspaceRecentOrder.filter((id) => workspaces[id])
+    const fallback = workspaceOrder.filter((id) => workspaces[id])
+    return recent.length > 0 ? recent : fallback
+  }, [workspaceRecentOrder, workspaceOrder, workspaces])
 
   const createForm = useForm<NameFormValues>({
     resolver: zodResolver(nameSchema),
@@ -233,6 +242,26 @@ export function JournalFooter({
         return
       }
 
+      if (event.ctrlKey && key === "tab") {
+        event.preventDefault()
+        if (recentWorkspaceList.length === 0) return
+
+        if (!isWorkspaceSwitcherOpen) {
+          const initialIndex = recentWorkspaceList.length > 1 ? 1 : 0
+          setWorkspaceSwitchList(recentWorkspaceList)
+          setWorkspaceSwitchIndex(initialIndex)
+          setIsWorkspaceSwitcherOpen(true)
+          return
+        }
+
+        setWorkspaceSwitchIndex((prev) =>
+          recentWorkspaceList.length > 0
+            ? (prev + 1) % recentWorkspaceList.length
+            : 0
+        )
+        return
+      }
+
       if (isTyping) return
 
       if (metaOrCtrl && event.altKey) {
@@ -278,10 +307,67 @@ export function JournalFooter({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [currentWorkspaceIndex, workspaceOrder, currentWorkspace, isCommandOpen])
+  }, [
+    currentWorkspaceIndex,
+    workspaceOrder,
+    currentWorkspace,
+    isCommandOpen,
+    isWorkspaceSwitcherOpen,
+    recentWorkspaceList,
+  ])
 
-  return (
-    <>
+  useEffect(() => {
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (!isWorkspaceSwitcherOpen) return
+      if (event.key.toLowerCase() !== "control") return
+
+      const selectedId = workspaceSwitchList[workspaceSwitchIndex]
+      if (selectedId) {
+        handleWorkspaceChange(selectedId)
+      }
+
+      setIsWorkspaceSwitcherOpen(false)
+      setWorkspaceSwitchList([])
+      setWorkspaceSwitchIndex(0)
+    }
+
+    window.addEventListener("keyup", handleKeyUp)
+    return () => window.removeEventListener("keyup", handleKeyUp)
+  }, [isWorkspaceSwitcherOpen, workspaceSwitchList, workspaceSwitchIndex])
+
+    return (
+      <>
+        {isWorkspaceSwitcherOpen && workspaceSwitchList.length > 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+            <div className="min-w-72 rounded-xl border border-border bg-background/95 p-3 shadow-lg">
+              <div className="text-xs font-medium text-muted-foreground mb-2">
+                Switch workspace
+              </div>
+              <div className="space-y-1">
+                {workspaceSwitchList.map((id, index) => (
+                  <div
+                    key={id}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1 text-sm",
+                      index === workspaceSwitchIndex
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    <span className="flex-1 truncate">
+                      {workspaces[id]?.name ?? "Workspace"}
+                    </span>
+                    {id === currentWorkspaceId && (
+                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Current
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       <div
         className={cn(
           "h-12 border-t border-border bg-background flex items-center justify-between px-4",
@@ -360,24 +446,10 @@ export function JournalFooter({
 
       {/* Command Dialog - Center of Screen */}
       <CommandDialog open={isCommandOpen} onOpenChange={setIsCommandOpen}>
-        <Command>
-          <CommandInput placeholder="Search workspace..." />
+        <Command loop>
+          <CommandInput placeholder="Search commands..." />
           <CommandList>
-            <CommandEmpty>No workspace found.</CommandEmpty>
-            <CommandGroup heading="Workspaces">
-              {workspaceList.map((workspace) => (
-                <CommandItem
-                  key={workspace.id}
-                  value={workspace.name}
-                  onSelect={() => handleWorkspaceChange(workspace.id)}
-                >
-                  <span className="flex-1">{workspace.name}</span>
-                  {workspace.id === currentWorkspaceId && (
-                    <Check className="h-4 w-4" />
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            <CommandEmpty>No command found.</CommandEmpty>
             <CommandGroup heading="Workspace actions">
               <CommandItem onSelect={() => openCreateDialog(true)}>
                 New workspace
@@ -396,20 +468,6 @@ export function JournalFooter({
               >
                 Delete current workspace
                 <CommandShortcut>Ctrl Alt Backspace</CommandShortcut>
-              </CommandItem>
-              <CommandItem
-                onSelect={() => handleWorkspaceChange(workspaceOrder[currentWorkspaceIndex - 1])}
-                disabled={currentWorkspaceIndex <= 0}
-              >
-                Previous workspace
-                <CommandShortcut>Ctrl Alt Left</CommandShortcut>
-              </CommandItem>
-              <CommandItem
-                onSelect={() => handleWorkspaceChange(workspaceOrder[currentWorkspaceIndex + 1])}
-                disabled={currentWorkspaceIndex < 0 || currentWorkspaceIndex >= workspaceOrder.length - 1}
-              >
-                Next workspace
-                <CommandShortcut>Ctrl Alt Right</CommandShortcut>
               </CommandItem>
             </CommandGroup>
             <CommandGroup heading="Journal actions">
