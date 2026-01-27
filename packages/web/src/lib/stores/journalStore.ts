@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { immer } from "zustand/middleware/immer"
 import { v4 as uuidv4 } from "uuid"
 import type { TodoItem, JournalPage, TodoStatus, Workspace } from "@/lib/types/journal"
 import { getTodayKey, formatDateKey } from "@/lib/utils/dateUtils"
@@ -105,7 +106,7 @@ interface JournalStore {
 
 export const useJournalStore = create<JournalStore>()(
   persist(
-    (set, get) => {
+    immer((set, get) => {
       const defaultWorkspace = buildWorkspace("Default")
 
       return {
@@ -900,7 +901,7 @@ export const useJournalStore = create<JournalStore>()(
           return movedTodos.length
         },
       }
-    },
+    }),
     {
       name: "journal-storage",
       version: 8,

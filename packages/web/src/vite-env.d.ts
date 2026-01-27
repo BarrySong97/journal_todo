@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference path="./types/zustand-immer.d.ts" />
 
 // View Transitions API types
 interface ViewTransition {
