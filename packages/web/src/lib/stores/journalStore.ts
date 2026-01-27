@@ -93,6 +93,12 @@ interface JournalStore {
   toggleTodo: (todoId: string, dateKey?: string) => boolean // returns true if toggled, false if blocked by incomplete children
   deleteTodo: (todoId: string, dateKey?: string) => void
   moveTodo: (todoId: string, direction: "up" | "down", dateKey?: string) => void
+  reorderTodos: (
+    activeId: string,
+    overId: string,
+    newDepth: number,
+    dateKey?: string
+  ) => void
   getTodo: (todoId: string, dateKey?: string) => TodoItem | undefined
   rollOverTodosToToday: () => number
 }
@@ -566,6 +572,103 @@ export const useJournalStore = create<JournalStore>()(
           const updatedPage: JournalPage = {
             ...page,
             todos: newTodos,
+            updatedAt: new Date(),
+          }
+
+          const updatedWorkspace = updateWorkspacePage(
+            workspace,
+            targetDateKey,
+            updatedPage
+          )
+
+          set({
+            workspaces: {
+              ...workspaces,
+              [currentWorkspaceId]: updatedWorkspace,
+            },
+          })
+        },
+
+        reorderTodos: (
+          activeId: string,
+          overId: string,
+          newDepth: number,
+          dateKey?: string
+        ) => {
+          const { currentWorkspaceId, workspaces } = get()
+          const workspace = workspaces[currentWorkspaceId]
+          if (!workspace) return
+
+          const targetDateKey = dateKey || workspace.currentDateKey
+          const page = workspace.pages[targetDateKey]
+          if (!page) return
+
+          // Following official SortableTree handleDragEnd logic exactly
+          const activeIndex = page.todos.findIndex((todo) => todo.id === activeId)
+          const overIndex = page.todos.findIndex((todo) => todo.id === overId)
+          if (activeIndex === -1 || overIndex === -1) return
+
+          const activeTodo = page.todos[activeIndex]
+          const depthDiff = newDepth - activeTodo.level
+
+          // Find the block of todos to move (active todo + its children)
+          const findBlockEnd = (startIndex: number) => {
+            const rootLevel = page.todos[startIndex].level
+            let endIndex = startIndex
+
+            for (let i = startIndex + 1; i < page.todos.length; i++) {
+              if (page.todos[i].level > rootLevel) {
+                endIndex = i
+              } else {
+                break
+              }
+            }
+
+            return endIndex
+          }
+
+          const activeBlockEnd = findBlockEnd(activeIndex)
+          const blockSize = activeBlockEnd - activeIndex + 1
+
+          // Clone todos and update depths for the active block
+          const clonedTodos = page.todos.map((todo, index) => {
+            if (index >= activeIndex && index <= activeBlockEnd) {
+              return {
+                ...todo,
+                level: Math.max(0, Math.min(3, todo.level + depthDiff)),
+                updatedAt: new Date(),
+              }
+            }
+            return { ...todo }
+          })
+
+          // Use arrayMove logic: move the block to the over position
+          // Calculate target index accounting for block movement
+          let targetIndex = overIndex
+          if (activeIndex < overIndex) {
+            // Moving down: target is after the over item, minus the block we're removing
+            targetIndex = overIndex - blockSize + 1
+          }
+
+          // Extract the block
+          const block = clonedTodos.splice(activeIndex, blockSize)
+
+          // Adjust target index if we removed items before it
+          if (activeIndex < targetIndex) {
+            targetIndex = Math.min(targetIndex, clonedTodos.length)
+          }
+
+          // Insert the block at the target position
+          clonedTodos.splice(targetIndex, 0, ...block)
+
+          // Update order numbers
+          clonedTodos.forEach((todo, index) => {
+            todo.order = index
+          })
+
+          const updatedPage: JournalPage = {
+            ...page,
+            todos: clonedTodos,
             updatedAt: new Date(),
           }
 

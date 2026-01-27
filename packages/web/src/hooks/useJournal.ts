@@ -24,6 +24,7 @@ export function useJournal() {
   const toggleTodo = useJournalStore((state) => state.toggleTodo)
   const deleteTodo = useJournalStore((state) => state.deleteTodo)
   const moveTodo = useJournalStore((state) => state.moveTodo)
+  const reorderTodos = useJournalStore((state) => state.reorderTodos)
   const getTodo = useJournalStore((state) => state.getTodo)
   const rollOverTodosToToday = useJournalStore((state) => state.rollOverTodosToToday)
 
@@ -55,6 +56,7 @@ export function useJournal() {
     toggleTodo,
     deleteTodo,
     moveTodo,
+    reorderTodos,
     getTodo,
     rollOverTodosToToday,
   }

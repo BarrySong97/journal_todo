@@ -237,6 +237,9 @@ export function useTodoKeyboard({
         }
 
         case "Tab":
+          if (e.ctrlKey || e.metaKey) {
+            break
+          }
           e.preventDefault()
           if (e.shiftKey) {
             // Shift + Tab: Outdent (move to parent level)

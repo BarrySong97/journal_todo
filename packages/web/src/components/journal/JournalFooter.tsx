@@ -117,6 +117,20 @@ export function JournalFooter({
     return recent.length > 0 ? recent : fallback
   }, [workspaceRecentOrder, workspaceOrder, workspaces])
 
+  // Calculate incomplete todo counts for each workspace
+  const incompleteTodoCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const [id, workspace] of Object.entries(workspaces)) {
+      if (!workspace) continue
+      let count = 0
+      for (const page of Object.values(workspace.pages)) {
+        count += page.todos.filter((t) => t.status === "todo").length
+      }
+      counts[id] = count
+    }
+    return counts
+  }, [workspaces])
+
   const createForm = useForm<NameFormValues>({
     resolver: zodResolver(nameSchema),
     defaultValues: { name: "" },
@@ -271,6 +285,26 @@ export function JournalFooter({
         return
       }
 
+      // Arrow key navigation when workspace switcher is open
+      if (isWorkspaceSwitcherOpen && workspaceSwitchList.length > 0) {
+        if (key === "arrowdown") {
+          event.preventDefault()
+          event.stopPropagation()
+          setWorkspaceSwitchIndex((prev) =>
+            (prev + 1) % workspaceSwitchList.length
+          )
+          return
+        }
+        if (key === "arrowup") {
+          event.preventDefault()
+          event.stopPropagation()
+          setWorkspaceSwitchIndex((prev) =>
+            (prev - 1 + workspaceSwitchList.length) % workspaceSwitchList.length
+          )
+          return
+        }
+      }
+
       if (event.altKey && !event.ctrlKey && !event.metaKey) {
         switch (key) {
           case "arrowleft": {
@@ -331,8 +365,8 @@ export function JournalFooter({
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
   }, [
     currentWorkspaceIndex,
     workspaceOrder,
@@ -363,39 +397,47 @@ export function JournalFooter({
     return () => window.removeEventListener("keyup", handleKeyUp)
   }, [isWorkspaceSwitcherOpen, workspaceSwitchList, workspaceSwitchIndex])
 
-    return (
-      <>
-        {isWorkspaceSwitcherOpen && workspaceSwitchList.length > 0 && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-            <div className="min-w-72 rounded-xl border border-border bg-background/95 p-3 shadow-lg">
-              <div className="text-xs font-medium text-muted-foreground mb-2">
-                Switch workspace
-              </div>
-              <div className="space-y-1">
-                {workspaceSwitchList.map((id, index) => (
-                  <div
-                    key={id}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1 text-sm",
-                      index === workspaceSwitchIndex
-                        ? "bg-accent text-foreground"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    <span className="flex-1 truncate">
-                      {workspaces[id]?.name ?? "Workspace"}
+  return (
+    <>
+      {isWorkspaceSwitcherOpen && workspaceSwitchList.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+          <div className="min-w-72 rounded-xl border border-border bg-background/95 p-3 shadow-lg">
+
+            <div className="text-xs font-medium text-muted-foreground mb-2">
+              Switch workspace
+            </div>
+
+
+            <div className="space-y-1">
+              {workspaceSwitchList.map((id, index) => (
+                <div
+                  key={id}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1 text-sm",
+                    index === workspaceSwitchIndex
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  <span className="flex-1 truncate">
+                    {workspaces[id]?.name ?? "Workspace"}
+                  </span>
+                  {incompleteTodoCounts[id] > 0 && (
+                    <span className="text-[10px] tabular-nums text-muted-foreground">
+                      {incompleteTodoCounts[id]}
                     </span>
-                    {id === currentWorkspaceId && (
-                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Current
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  )}
+                  {id === currentWorkspaceId && (
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Current
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
-        )}
+        </div>
+      )}
       <div
         className={cn(
           "h-12 border-t border-border bg-background flex items-center justify-between px-4",
@@ -418,6 +460,11 @@ export function JournalFooter({
                   onClick={() => handleWorkspaceChange(workspace.id)}
                 >
                   <span className="flex-1 truncate">{workspace.name}</span>
+                  {incompleteTodoCounts[workspace.id] > 0 && (
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {incompleteTodoCounts[workspace.id]}
+                    </span>
+                  )}
                   {workspace.id === currentWorkspaceId && (
                     <Check className="h-4 w-4" />
                   )}

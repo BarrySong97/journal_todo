@@ -1,318 +1,454 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import type { MouseEvent as ReactMouseEvent } from "react"
+/**
+ * TodoList - Main component for todo list with drag-and-drop
+ * Adapted from dnd-kit SortableTree
+ */
+
+import { useState, useEffect, useMemo, useCallback, useRef, forwardRef } from "react"
+import { createPortal } from "react-dom"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  MeasuringStrategy,
+  DragOverlay,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragMoveEvent,
+  type DragOverEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { SortableTodoItem } from "./SortableTodoItem"
 import { TodoItem } from "./TodoItem"
+import {
+  flattenTodos,
+  removeChildrenOf,
+  getParentIds,
+  getVisibleTodos,
+  getProjection,
+  getChildCount,
+  INDENTATION_WIDTH,
+} from "./todoTreeUtils"
 import { useJournal } from "@/hooks/useJournal"
 import { useTodoFocus } from "@/hooks/useTodoFocus"
 import { useTodoKeyboard } from "@/hooks/useTodoKeyboard"
 import { Toast } from "@/components/ui/toast"
 
-const isInteractiveTarget = (target: EventTarget | null) => {
-  if (!(target instanceof HTMLElement)) return false
-  return Boolean(target.closest("textarea, input, button, a"))
+interface SelectionRect {
+  left: number
+  top: number
+  right: number
+  bottom: number
+  width: number
+  height: number
 }
 
-const getSelectionRect = (start: { x: number; y: number }, current: { x: number; y: number }) => {
-  const left = Math.min(start.x, current.x)
-  const top = Math.min(start.y, current.y)
-  const right = Math.max(start.x, current.x)
-  const bottom = Math.max(start.y, current.y)
-  return {
-    left,
-    top,
-    right,
-    bottom,
-    width: right - left,
-    height: bottom - top,
-  }
+interface TodoListProps {
+  selectionRect?: SelectionRect | null
+  onClearSelection?: () => void
 }
 
-export function TodoList() {
-  const {
-    currentPage,
-    currentWorkspaceId,
-    updateTodoText,
-    toggleTodo,
-    addTodo,
-    deleteTodo,
-    moveTodo,
-    updateTodoLevel,
-  } = useJournal()
+const measuring = {
+  droppable: {
+    strategy: MeasuringStrategy.Always,
+  },
+}
 
-  const [activeTodoId, setActiveTodoId] = useState<string | null>(null)
-  const [selectedTodoIds, setSelectedTodoIds] = useState<string[]>([])
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
-  const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [toastMessage, setToastMessage] = useState("")
-  const [toastOpen, setToastOpen] = useState(false)
-  const { setTodoRef, focusTodo } = useTodoFocus()
-  const dragMovedRef = useRef(false)
-  const listRef = useRef<HTMLDivElement | null>(null)
-  const prevWorkspaceIdRef = useRef<string | null>(null)
-  const prevDateRef = useRef<string | null>(null)
-  const selectedTodoSet = useMemo(() => new Set(selectedTodoIds), [selectedTodoIds])
+export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
+  function TodoList({ selectionRect, onClearSelection }, ref) {
+    const {
+      currentPage,
+      currentWorkspaceId,
+      updateTodoText,
+      toggleTodo,
+      addTodo,
+      deleteTodo,
+      moveTodo,
+      reorderTodos,
+      updateTodoLevel,
+    } = useJournal()
 
-  const clearSelection = useCallback(() => {
-    setSelectedTodoIds([])
-  }, [])
+    // UI state
+    const [activeTodoId, setActiveTodoId] = useState<string | null>(null)
+    const [selectedTodoIds, setSelectedTodoIds] = useState<string[]>([])
+    const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
+    const [toastMessage, setToastMessage] = useState("")
+    const [toastOpen, setToastOpen] = useState(false)
 
-  const updateSelectionFromRect = useCallback(
-    (rect: { left: number; right: number; top: number; bottom: number }) => {
-      if (!listRef.current) return
-      const elements = listRef.current.querySelectorAll<HTMLElement>("[data-todo-id]")
-      const hits = new Set<string>()
+    // Drag state (following official SortableTree pattern)
+    const [dragActiveId, setDragActiveId] = useState<string | null>(null)
+    const [dragOverId, setDragOverId] = useState<string | null>(null)
+    const [offsetLeft, setOffsetLeft] = useState(0)
 
-      elements.forEach((element) => {
-        const bounds = element.getBoundingClientRect()
-        const intersects =
-          bounds.right >= rect.left &&
-          bounds.left <= rect.right &&
-          bounds.bottom >= rect.top &&
-          bounds.top <= rect.bottom
+    const { setTodoRef, focusTodo } = useTodoFocus()
+    const listRef = useRef<HTMLDivElement | null>(null)
+    const prevWorkspaceIdRef = useRef<string | null>(null)
+    const prevDateRef = useRef<string | null>(null)
+    const selectedTodoSet = useMemo(() => new Set(selectedTodoIds), [selectedTodoIds])
 
-        if (intersects) {
-          const id = element.dataset.todoId
-          if (id) hits.add(id)
-        }
+    // dnd-kit sensors
+    const sensors = useSensors(
+      useSensor(PointerSensor, {
+        activationConstraint: {
+          distance: 8,
+        },
+      }),
+      useSensor(KeyboardSensor, {
+        coordinateGetter: sortableKeyboardCoordinates,
       })
+    )
 
-      const ordered = currentPage.todos
-        .filter((todo) => hits.has(todo.id))
-        .map((todo) => todo.id)
+    // Flatten todos and compute parent IDs
+    const flattenedTodos = useMemo(() => flattenTodos(currentPage.todos), [currentPage.todos])
+    const parentIds = useMemo(() => getParentIds(currentPage.todos), [currentPage.todos])
 
-      setSelectedTodoIds(ordered)
-    },
-    [currentPage.todos]
-  )
+    // Compute visible todos (collapsed + hide children of dragged item)
+    // Following official SortableTree pattern exactly
+    const visibleTodos = useMemo(() => {
+      const visibleItems = getVisibleTodos(flattenedTodos, collapsedIds)
 
-  const copySelectedTodos = useCallback(() => {
-    const texts = currentPage.todos
-      .filter((todo) => selectedTodoSet.has(todo.id))
-      .map((todo) => todo.text)
-      .filter((text) => text.trim().length > 0)
-
-    if (texts.length === 0) return
-
-    const payload = texts.join("\n")
-    const writeText = async () => {
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(payload)
-          return
-        }
-      } catch {
-        // fallback below
+      // During drag, also hide children of the dragged item
+      if (dragActiveId !== null) {
+        return removeChildrenOf(visibleItems, [dragActiveId])
       }
 
-      const textarea = document.createElement("textarea")
-      textarea.value = payload
-      textarea.style.position = "fixed"
-      textarea.style.opacity = "0"
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand("copy")
-      document.body.removeChild(textarea)
+      return visibleItems
+    }, [flattenedTodos, collapsedIds, dragActiveId])
+
+    // Calculate projection using official algorithm
+    const projected = useMemo(() => {
+      if (!dragActiveId || !dragOverId) return null
+      return getProjection(visibleTodos, dragActiveId, dragOverId, offsetLeft, INDENTATION_WIDTH)
+    }, [dragActiveId, dragOverId, offsetLeft, visibleTodos])
+
+    // Get sorted IDs for SortableContext
+    const sortedIds = useMemo(() => visibleTodos.map((todo) => todo.id), [visibleTodos])
+
+    // Get active item for DragOverlay
+    const activeItem = dragActiveId
+      ? flattenedTodos.find((todo) => todo.id === dragActiveId)
+      : null
+
+    // Handlers
+    const handleToggleCollapse = useCallback((todoId: string) => {
+      setCollapsedIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(todoId)) {
+          next.delete(todoId)
+        } else {
+          next.add(todoId)
+        }
+        return next
+      })
+    }, [])
+
+    // Drag handlers (following official SortableTree pattern exactly)
+    const handleDragStart = useCallback(({ active }: DragStartEvent) => {
+      setDragActiveId(String(active.id))
+      setDragOverId(String(active.id))
+      setSelectedTodoIds([])
+      document.body.style.setProperty("cursor", "grabbing")
+    }, [])
+
+    const handleDragMove = useCallback(({ delta }: DragMoveEvent) => {
+      setOffsetLeft(delta.x)
+    }, [])
+
+    const handleDragOver = useCallback(({ over }: DragOverEvent) => {
+      setDragOverId(over?.id ? String(over.id) : null)
+    }, [])
+
+    const handleDragEnd = useCallback(
+      ({ active, over }: DragEndEvent) => {
+        if (projected && over) {
+          const activeId = String(active.id)
+          const overId = String(over.id)
+          const { depth } = projected
+
+          reorderTodos(activeId, overId, depth)
+        }
+
+        resetDragState()
+      },
+      [reorderTodos, projected]
+    )
+
+    const handleDragCancel = useCallback(() => {
+      resetDragState()
+    }, [])
+
+    const resetDragState = () => {
+      setDragActiveId(null)
+      setDragOverId(null)
+      setOffsetLeft(0)
+      document.body.style.setProperty("cursor", "")
     }
 
-    void writeText()
-  }, [currentPage.todos, selectedTodoSet])
+    const clearSelection = useCallback(() => {
+      setSelectedTodoIds([])
+      onClearSelection?.()
+    }, [onClearSelection])
 
-  const { handleKeyDown } = useTodoKeyboard({
-    todos: currentPage.todos,
-    activeTodoId,
-    focusTodo,
-    addTodo,
-    updateTodoText,
-    deleteTodo,
-    moveTodo,
-    updateTodoLevel,
-    setActiveTodoId,
-    selectedTodoIds,
-    copySelectedTodos,
-  })
+    const updateSelectionFromRect = useCallback(
+      (rect: { left: number; right: number; top: number; bottom: number }) => {
+        if (!listRef.current) return
+        const elements = listRef.current.querySelectorAll<HTMLElement>("[data-todo-id]")
+        const hits = new Set<string>()
 
-  useEffect(() => {
-    if (prevDateRef.current === currentPage.date) return
-    prevDateRef.current = currentPage.date
-    if (currentPage.todos.length === 0) return
-    const firstTodo = currentPage.todos[0]
-    setTimeout(() => {
+        elements.forEach((element) => {
+          const bounds = element.getBoundingClientRect()
+          const intersects =
+            bounds.right >= rect.left &&
+            bounds.left <= rect.right &&
+            bounds.bottom >= rect.top &&
+            bounds.top <= rect.bottom
+
+          if (intersects) {
+            const id = element.dataset.todoId
+            if (id) hits.add(id)
+          }
+        })
+
+        const ordered = visibleTodos
+          .filter((todo) => hits.has(todo.id))
+          .map((todo) => todo.id)
+
+        setSelectedTodoIds(ordered)
+      },
+      [visibleTodos]
+    )
+
+    // Update selection when selectionRect changes
+    useEffect(() => {
+      if (selectionRect) {
+        updateSelectionFromRect(selectionRect)
+      }
+    }, [selectionRect, updateSelectionFromRect])
+
+    const copySelectedTodos = useCallback(() => {
+      const INDENT = "  "
+      const texts = currentPage.todos
+        .filter((todo) => selectedTodoSet.has(todo.id))
+        .map((todo) => `${INDENT.repeat(todo.level)}${todo.text}`)
+        .filter((text) => text.trim().length > 0)
+
+      if (texts.length === 0) return
+
+      const payload = texts.join("\n")
+      const writeText = async () => {
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(payload)
+            return
+          }
+        } catch {
+          // fallback
+        }
+
+        const textarea = document.createElement("textarea")
+        textarea.value = payload
+        textarea.style.position = "fixed"
+        textarea.style.opacity = "0"
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand("copy")
+        document.body.removeChild(textarea)
+      }
+
+      void writeText()
+    }, [currentPage.todos, selectedTodoSet])
+
+    // Keyboard handling
+    const { handleKeyDown } = useTodoKeyboard({
+      todos: currentPage.todos,
+      activeTodoId,
+      focusTodo,
+      addTodo,
+      updateTodoText,
+      deleteTodo,
+      moveTodo,
+      updateTodoLevel,
+      setActiveTodoId,
+      selectedTodoIds,
+      copySelectedTodos,
+    })
+
+    // Focus management
+    useEffect(() => {
+      if (prevDateRef.current === currentPage.date) return
+      prevDateRef.current = currentPage.date
+      if (currentPage.todos.length === 0) return
+      const firstTodo = currentPage.todos[0]
+      setTimeout(() => {
+        setActiveTodoId(firstTodo.id)
+        focusTodo(firstTodo.id)
+      }, 0)
+    }, [currentPage.date, currentPage.todos, focusTodo])
+
+    useEffect(() => {
+      const prevWorkspaceId = prevWorkspaceIdRef.current
+      if (prevWorkspaceId === currentWorkspaceId) return
+      prevWorkspaceIdRef.current = currentWorkspaceId
+
+      if (currentPage.todos.length === 0) return
+      const firstTodo = currentPage.todos[0]
+      clearSelection()
       setActiveTodoId(firstTodo.id)
-      focusTodo(firstTodo.id)
-    }, 0)
-  }, [currentPage.date, currentPage.todos, focusTodo])
+      setTimeout(() => {
+        focusTodo(firstTodo.id)
+      }, 0)
+    }, [currentWorkspaceId, currentPage.todos, focusTodo, clearSelection])
 
-  useEffect(() => {
-    const prevWorkspaceId = prevWorkspaceIdRef.current
-    if (prevWorkspaceId === currentWorkspaceId) return
-    prevWorkspaceIdRef.current = currentWorkspaceId
-
-    if (currentPage.todos.length === 0) return
-    const firstTodo = currentPage.todos[0]
-    clearSelection()
-    setActiveTodoId(firstTodo.id)
-    setTimeout(() => {
-      focusTodo(firstTodo.id)
-    }, 0)
-  }, [currentWorkspaceId, currentPage.todos, focusTodo, clearSelection])
-
-  const handleTextChange = (todoId: string, text: string) => {
-    updateTodoText(todoId, text)
-  }
-
-  const handleToggle = (todoId: string) => {
-    toggleTodo(todoId)
-  }
-
-  const handleFocus = (todoId: string) => {
-    setActiveTodoId(todoId)
-    clearSelection()
-  }
-
-  const handleMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return
-    if (isInteractiveTarget(event.target)) return
-
-    clearSelection()
-    dragMovedRef.current = false
-    setDragStart({ x: event.clientX, y: event.clientY })
-    setDragCurrent({ x: event.clientX, y: event.clientY })
-    setIsDragging(true)
-    event.preventDefault()
-  }
-
-  useEffect(() => {
-    if (!isDragging || !dragStart) return
-
-    document.body.style.userSelect = "none"
-
-    const handleMove = (event: MouseEvent) => {
-      const nextPoint = { x: event.clientX, y: event.clientY }
-      const distance =
-        Math.abs(nextPoint.x - dragStart.x) + Math.abs(nextPoint.y - dragStart.y)
-      if (distance > 3) {
-        dragMovedRef.current = true
-      }
-
-      setDragCurrent(nextPoint)
-
-      if (dragMovedRef.current) {
-        const rect = getSelectionRect(dragStart, nextPoint)
-        updateSelectionFromRect(rect)
-      }
+    // Event handlers for TodoItem
+    const handleTextChange = (todoId: string, text: string) => {
+      updateTodoText(todoId, text)
     }
 
-    const handleUp = () => {
-      setIsDragging(false)
-      setDragStart(null)
-      setDragCurrent(null)
-      document.body.style.userSelect = ""
-
-      if (!dragMovedRef.current) {
-        clearSelection()
-      }
+    const handleToggle = (todoId: string) => {
+      toggleTodo(todoId)
     }
 
-    window.addEventListener("mousemove", handleMove)
-    window.addEventListener("mouseup", handleUp)
-
-    return () => {
-      window.removeEventListener("mousemove", handleMove)
-      window.removeEventListener("mouseup", handleUp)
-      document.body.style.userSelect = ""
+    const handleFocus = (todoId: string) => {
+      setActiveTodoId(todoId)
+      clearSelection()
     }
-  }, [isDragging, dragStart, updateSelectionFromRect, clearSelection])
 
-  useEffect(() => {
-    const handleCopy = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return
-      if (!event.ctrlKey && !event.metaKey) return
-      if (event.key.toLowerCase() !== "c") return
-      if (selectedTodoIds.length === 0) return
+    // Global keyboard handlers
+    useEffect(() => {
+      const handleCopy = (event: KeyboardEvent) => {
+        if (event.defaultPrevented) return
+        if (!event.ctrlKey && !event.metaKey) return
+        if (event.key.toLowerCase() !== "c") return
+        if (selectedTodoIds.length === 0) return
 
-      if (document.activeElement instanceof HTMLTextAreaElement) {
-        const input = document.activeElement
-        if (input.selectionStart !== input.selectionEnd) return
+        if (document.activeElement instanceof HTMLTextAreaElement) {
+          const input = document.activeElement
+          if (input.selectionStart !== input.selectionEnd) return
+        }
+
+        const selectionText = window.getSelection()?.toString() ?? ""
+        if (selectionText.length > 0) return
+
+        event.preventDefault()
+        copySelectedTodos()
       }
 
-      const selectionText = window.getSelection()?.toString() ?? ""
-      if (selectionText.length > 0) return
+      window.addEventListener("keydown", handleCopy)
+      return () => window.removeEventListener("keydown", handleCopy)
+    }, [selectedTodoIds.length, copySelectedTodos])
 
-      event.preventDefault()
-      copySelectedTodos()
-    }
-
-    window.addEventListener("keydown", handleCopy)
-    return () => window.removeEventListener("keydown", handleCopy)
-  }, [selectedTodoIds.length, copySelectedTodos])
-
-  useEffect(() => {
-    const handleToggleTodo = (event: Event) => {
-      const customEvent = event as CustomEvent<{ todoId: string }>
-      if (customEvent.detail?.todoId) {
-        const success = toggleTodo(customEvent.detail.todoId)
-        if (!success) {
-          setToastMessage("Please complete all sub-todos first")
-          setToastOpen(true)
+    useEffect(() => {
+      const handleToggleTodo = (event: Event) => {
+        const customEvent = event as CustomEvent<{ todoId: string }>
+        if (customEvent.detail?.todoId) {
+          const success = toggleTodo(customEvent.detail.todoId)
+          if (!success) {
+            setToastMessage("Please complete all sub-todos first")
+            setToastOpen(true)
+          }
         }
       }
+
+      window.addEventListener("toggle-todo", handleToggleTodo)
+      return () => window.removeEventListener("toggle-todo", handleToggleTodo)
+    }, [toggleTodo])
+
+    useEffect(() => {
+      if (!toastOpen) return
+      const timer = window.setTimeout(() => {
+        setToastOpen(false)
+      }, 2500)
+      return () => window.clearTimeout(timer)
+    }, [toastOpen])
+
+    // Combine refs
+    const setRefs = useCallback(
+      (element: HTMLDivElement | null) => {
+        listRef.current = element
+        if (typeof ref === "function") {
+          ref(element)
+        } else if (ref) {
+          ref.current = element
+        }
+      },
+      [ref]
+    )
+
+    if (currentPage.todos.length === 0) {
+      return (
+        <div className="text-center text-muted-foreground py-8">
+          <p>No todos for this day yet.</p>
+        </div>
+      )
     }
 
-    window.addEventListener("toggle-todo", handleToggleTodo)
-    return () => window.removeEventListener("toggle-todo", handleToggleTodo)
-  }, [toggleTodo])
-
-  useEffect(() => {
-    if (!toastOpen) return
-    const timer = window.setTimeout(() => {
-      setToastOpen(false)
-    }, 2500)
-    return () => window.clearTimeout(timer)
-  }, [toastOpen])
-
-  const selectionRect = useMemo(() => {
-    if (!dragStart || !dragCurrent || !isDragging) return null
-    if (!dragMovedRef.current) return null
-    return getSelectionRect(dragStart, dragCurrent)
-  }, [dragStart, dragCurrent, isDragging])
-
-  if (currentPage.todos.length === 0) {
     return (
-      <div className="text-center text-muted-foreground py-8">
-        <p>No todos for this day yet.</p>
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        measuring={measuring}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
+          <div ref={setRefs} className="space-y-0">
+            {visibleTodos.map((todo) => (
+              <SortableTodoItem
+                key={todo.id}
+                todo={todo}
+                // Key: active item uses projected.depth, others use their own depth
+                depth={todo.id === dragActiveId && projected ? projected.depth : todo.depth}
+                isActive={activeTodoId === todo.id}
+                isSelected={selectedTodoSet.has(todo.id)}
+                isParent={parentIds.has(todo.id)}
+                isCollapsed={collapsedIds.has(todo.id)}
+                indicator={true}
+                onTextChange={handleTextChange}
+                onToggle={handleToggle}
+                onToggleCollapse={handleToggleCollapse}
+                onKeyDown={handleKeyDown}
+                onFocus={handleFocus}
+                inputRef={setTodoRef}
+              />
+            ))}
+            {/* DragOverlay - shows clone of dragged item */}
+            {createPortal(
+              <DragOverlay>
+                {dragActiveId && activeItem ? (
+                  <TodoItem
+                    todo={activeItem}
+                    depth={activeItem.depth}
+                    clone={true}
+                    childCount={getChildCount(flattenedTodos, dragActiveId) + 1}
+                    isActive={false}
+                    isSelected={false}
+                    isParent={parentIds.has(dragActiveId)}
+                    isCollapsed={false}
+                    onTextChange={() => {}}
+                    onToggle={() => {}}
+                    onKeyDown={() => {}}
+                    onFocus={() => {}}
+                    inputRef={() => {}}
+                  />
+                ) : null}
+              </DragOverlay>,
+              document.body
+            )}
+            <Toast open={toastOpen} message={toastMessage} />
+          </div>
+        </SortableContext>
+      </DndContext>
     )
   }
-
-  return (
-    <div ref={listRef} onMouseDown={handleMouseDown} className="space-y-1">
-      {selectionRect && (
-        <div
-          className="fixed z-50 pointer-events-none rounded-sm border border-primary/60 bg-primary/15"
-          style={{
-            left: selectionRect.left,
-            top: selectionRect.top,
-            width: selectionRect.width,
-            height: selectionRect.height,
-          }}
-        />
-      )}
-      {currentPage.todos.map((todo) => (
-        <TodoItem
-          key={todo.id}
-          todo={todo}
-          isActive={activeTodoId === todo.id}
-          isSelected={selectedTodoSet.has(todo.id)}
-          onTextChange={handleTextChange}
-          onToggle={handleToggle}
-          onKeyDown={handleKeyDown}
-          onFocus={handleFocus}
-          inputRef={setTodoRef}
-        />
-      ))}
-      <Toast open={toastOpen} message={toastMessage} />
-    </div>
-  )
-}
+)
