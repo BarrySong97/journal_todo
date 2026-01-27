@@ -10,13 +10,11 @@
     "build:web": "turbo build --filter=@journal-todo/web",
     "build:desktop": "turbo build --filter=@journal-todo/desktop",
     "lint": "turbo lint",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "icon": "pnpm -C packages/desktop tauri icon src-tauri/icons/icon.png"
   },
   "devDependencies": {
-    "@types/node": "^24.10.9",
     "agentation": "^1.3.2",
-    "sharp": "^0.34.5",
-    "tsx": "^4.21.0",
     "turbo": "^2.5.4",
     "typescript": "~5.8.3"
   },
