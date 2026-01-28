@@ -16,12 +16,16 @@ const MAX_DEPTH = 3
 
 /**
  * Convert flat todos array to flattened items with parentId
+ * Sorts by fractional order first
  */
 export function flattenTodos(todos: TodoItem[]): FlattenedTodo[] {
+  // Sort by fractional order
+  const sortedTodos = [...todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+  
   const result: FlattenedTodo[] = []
   const parentStack: { id: string; depth: number }[] = []
 
-  for (const todo of todos) {
+  for (const todo of sortedTodos) {
     // Pop parents that are at same or deeper level
     while (parentStack.length > 0 && parentStack[parentStack.length - 1].depth >= todo.level) {
       parentStack.pop()
@@ -60,10 +64,13 @@ export function removeChildrenOf(items: FlattenedTodo[], ids: string[]): Flatten
  * Get IDs of todos that have children
  */
 export function getParentIds(todos: TodoItem[]): Set<string> {
+  // Sort by fractional order first
+  const sortedTodos = [...todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+  
   const parentIds = new Set<string>()
-  for (let i = 0; i < todos.length - 1; i++) {
-    if (todos[i + 1].level > todos[i].level) {
-      parentIds.add(todos[i].id)
+  for (let i = 0; i < sortedTodos.length - 1; i++) {
+    if (sortedTodos[i + 1].level > sortedTodos[i].level) {
+      parentIds.add(sortedTodos[i].id)
     }
   }
   return parentIds

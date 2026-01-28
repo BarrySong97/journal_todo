@@ -30,7 +30,10 @@ export function useJournal() {
 
   const currentWorkspace: Workspace | undefined = workspaces[currentWorkspaceId]
   const currentDateKey = currentWorkspace?.currentDateKey ?? getTodayKey()
-  const currentPage: JournalPage = getCurrentPage()
+  
+  // Get current page without triggering state updates during render
+  // If page doesn't exist, return undefined - components should call getOrCreatePage in useEffect
+  const currentPage: JournalPage | undefined = currentWorkspace?.pages[currentDateKey]
 
   return {
     currentWorkspaceId,
@@ -48,6 +51,7 @@ export function useJournal() {
     goToToday,
     goToNextDay,
     goToPreviousDay,
+    getCurrentPage,
     getOrCreatePage,
     // Todo operations
     addTodo,

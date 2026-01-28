@@ -23,8 +23,14 @@ export function DateNavigation({ className }: DateNavigationProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const { currentDateKey, setCurrentDate } = useJournal();
-  const isToday = currentDateKey === getTodayKey();
-  const currentDate = parseDateKey(currentDateKey);
+  
+  // Safely parse the date key, falling back to today if invalid
+  const safeCurrentDateKey = currentDateKey && typeof currentDateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(currentDateKey)
+    ? currentDateKey
+    : getTodayKey();
+  
+  const isToday = safeCurrentDateKey === getTodayKey();
+  const currentDate = parseDateKey(safeCurrentDateKey);
   const formattedDate = format(currentDate, "M月d日", { locale: zhCN });
 
   const handleDateSelect = (date: Date | undefined) => {

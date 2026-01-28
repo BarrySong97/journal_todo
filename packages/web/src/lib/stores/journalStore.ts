@@ -1,15 +1,20 @@
 import { create } from "zustand"
-import { persist } from "zustand/middleware"
 import { immer } from "zustand/middleware/immer"
 import { v4 as uuidv4 } from "uuid"
-import type { TodoItem, JournalPage, TodoStatus, Workspace } from "@/lib/types/journal"
-import { getTodayKey, formatDateKey } from "@/lib/utils/dateUtils"
-
-const normalizeStatus = (status: unknown): TodoStatus =>
-  status === "done" ? "done" : "todo"
-
-const isTodoStatus = (status: unknown): status is TodoStatus =>
-  status === "todo" || status === "done"
+import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing"
+import type { TodoItem, JournalPage, TodoStatus, Workspace } from "../types/journal"
+import { getTodayKey, formatDateKey } from "../utils/dateUtils"
+import {
+  initializeStorage,
+  getWorkspaces,
+  createWorkspace as createWorkspaceRepo,
+  updateWorkspace as updateWorkspaceRepo,
+  deleteWorkspace as deleteWorkspaceRepo,
+  createPage as createPageRepo,
+  createTodo as createTodoRepo,
+  updateTodo as updateTodoRepo,
+  deleteTodo as deleteTodoRepo,
+} from "@journal-todo/api"
 
 const isBlankText = (value: unknown) =>
   typeof value !== "string" || value.trim().length === 0
@@ -18,6 +23,58 @@ const extractTags = (text: string) => {
   const matches = text.match(/#[^\s#]+/g) ?? []
   const normalized = matches.map((tag) => tag.slice(1).toLowerCase())
   return Array.from(new Set(normalized))
+}
+
+
+/**
+ * Generate a fractional index between two existing indices
+ * If before is null, generates an index before the first item
+ * If after is null, generates an index after the last item
+ */
+const generateOrderBetween = (before: string | null, after: string | null): string => {
+  return generateKeyBetween(before, after)
+}
+
+/**
+ * Generate the first fractional index for a new list
+ */
+const generateFirstOrder = (): string => {
+  return generateKeyBetween(null, null)
+}
+
+const MAX_TODO_DEPTH = 3
+
+const getParentIdForIndex = (items: TodoItem[], index: number, level: number): string | null => {
+  if (level === 0) return null
+  for (let i = index - 1; i >= 0; i--) {
+    if (items[i].level === level - 1) return items[i].id
+  }
+  return null
+}
+
+const clampDepthForInsert = (
+  desiredDepth: number,
+  maxDepthAllowed: number,
+  beforeTodo: TodoItem | undefined,
+  afterTodo: TodoItem | undefined,
+  sortedTodos: TodoItem[],
+  insertIndex: number
+): number => {
+  let clampedDepth = Math.max(0, Math.min(maxDepthAllowed, desiredDepth))
+
+  // Ensure parent chain exists before insert
+  while (clampedDepth > 0) {
+    const parentIndex = sortedTodos
+      .slice(0, insertIndex)
+      .map((t) => t.level)
+      .lastIndexOf(clampedDepth - 1)
+    if (parentIndex !== -1) break
+    clampedDepth -= 1
+  }
+
+  const maxDepth = beforeTodo ? Math.min(MAX_TODO_DEPTH, beforeTodo.level + 1) : 0
+  const minDepth = afterTodo ? afterTodo.level : 0
+  return Math.max(0, Math.min(maxDepth, Math.max(minDepth, clampedDepth)))
 }
 
 const buildWorkspace = (name: string, overrides?: Partial<Workspace>): Workspace => {
@@ -41,7 +98,7 @@ const buildPage = (dateKey: string): JournalPage => ({
       text: "",
       status: "todo",
       tags: [],
-      order: 0,
+      order: generateFirstOrder(),
       level: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -63,6 +120,49 @@ const updateWorkspacePage = (
   },
   updatedAt: new Date(),
 })
+
+// Helper to persist workspace changes
+const persistWorkspace = (workspaceId: string, data: Partial<Workspace>) => {
+  updateWorkspaceRepo(workspaceId, data).catch(console.error)
+}
+
+// Helper to persist a single todo update
+const persistTodoUpdate = (todoId: string, data: Partial<TodoItem>) => {
+  updateTodoRepo(todoId, { ...data, updatedAt: new Date() }).catch((error) => {
+    console.error(`[persist] Failed to update todo ${todoId}:`, error)
+  })
+}
+
+// Helper to persist a new todo
+const persistTodoCreate = (workspaceId: string, date: string, page: JournalPage, todo: TodoItem) => {
+  ensurePageExists(workspaceId, page)
+    .then(() => createTodoRepo(workspaceId, date, todo))
+    .catch((error) => {
+      console.error(`[persist] Failed to create todo ${todo.id}:`, error)
+    })
+}
+
+// Helper to persist todo deletion
+const persistTodoDelete = (todoId: string) => {
+  deleteTodoRepo(todoId).catch((error) => {
+    console.error(`[persist] Failed to delete todo ${todoId}:`, error)
+  })
+}
+
+// Helper to ensure page exists in database
+const ensurePageExists = async (workspaceId: string, page: JournalPage) => {
+  try {
+    await createPageRepo(workspaceId, {
+      date: page.date,
+      todos: [],
+      notes: page.notes,
+      createdAt: page.createdAt,
+      updatedAt: page.updatedAt,
+    })
+  } catch {
+    // Page might already exist, that's fine
+  }
+}
 
 interface JournalStore {
   // State
@@ -88,15 +188,16 @@ interface JournalStore {
   getOrCreatePage: (dateKey: string) => JournalPage
 
   // Todo CRUD actions
-  addTodo: (text?: string, afterTodoId?: string, dateKey?: string, level?: number) => string // returns new todo id
+  addTodo: (text?: string, afterTodoId?: string, dateKey?: string, level?: number) => string
   updateTodoText: (todoId: string, text: string, dateKey?: string) => void
   updateTodoLevel: (todoId: string, direction: "indent" | "outdent", dateKey?: string) => void
-  toggleTodo: (todoId: string, dateKey?: string) => boolean // returns true if toggled, false if blocked by incomplete children
+  toggleTodo: (todoId: string, dateKey?: string) => boolean
   deleteTodo: (todoId: string, dateKey?: string) => void
   moveTodo: (todoId: string, direction: "up" | "down", dateKey?: string) => void
   reorderTodos: (
     activeId: string,
-    overId: string,
+    beforeId: string | null,
+    afterId: string | null,
     newDepth: number,
     dateKey?: string
   ) => void
@@ -105,842 +206,637 @@ interface JournalStore {
 }
 
 export const useJournalStore = create<JournalStore>()(
-  persist(
-    immer((set, get) => {
-      const defaultWorkspace = buildWorkspace("Default")
+  immer((set, get) => {
+    const defaultWorkspace = buildWorkspace("Default")
 
-      return {
-        // Initial state
-        currentWorkspaceId: defaultWorkspace.id,
-        workspaceOrder: [defaultWorkspace.id],
-        workspaceRecentOrder: [defaultWorkspace.id],
-        workspaces: {
-          [defaultWorkspace.id]: defaultWorkspace,
-        },
+    // Initialize store with data from repository
+    const initializeFromRepository = async () => {
+      const initResult = await initializeStorage()
+      if (!initResult.success) {
+        console.error("Failed to initialize storage:", initResult.error)
+        return
+      }
 
-        // Workspace actions
-        setCurrentWorkspace: (workspaceId: string) => {
-          const { workspaces, workspaceRecentOrder } = get()
-          if (!workspaces[workspaceId]) return
-          const nextRecent = [workspaceId, ...workspaceRecentOrder.filter((id) => id !== workspaceId)]
-          set({ currentWorkspaceId: workspaceId, workspaceRecentOrder: nextRecent })
-        },
+      const result = await getWorkspaces()
+      if (result.success && result.data.length > 0) {
+        const workspaces = result.data
+        const workspacesMap: Record<string, Workspace> = {}
+        workspaces.forEach(ws => {
+          workspacesMap[ws.id] = ws
+        })
 
-        createWorkspace: (name?: string) => {
-          const { workspaces, workspaceOrder, workspaceRecentOrder } = get()
-          const trimmedName = name?.trim()
-          const workspaceName = trimmedName && trimmedName.length > 0
-            ? trimmedName
-            : `Workspace ${workspaceOrder.length + 1}`
-          const newWorkspace = buildWorkspace(workspaceName)
-          const nextRecent = [newWorkspace.id, ...workspaceRecentOrder.filter((id) => id !== newWorkspace.id)]
+        const workspaceOrder = workspaces
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+          .map(ws => ws.id)
 
-          set({
-            workspaces: {
-              ...workspaces,
-              [newWorkspace.id]: newWorkspace,
-            },
-            workspaceOrder: [...workspaceOrder, newWorkspace.id],
-            workspaceRecentOrder: nextRecent,
-            currentWorkspaceId: newWorkspace.id,
-          })
+        const workspaceRecentOrder = workspaces
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+          .map(ws => ws.id)
 
-          return newWorkspace.id
-        },
+        set({
+          workspaces: workspacesMap,
+          workspaceOrder,
+          workspaceRecentOrder,
+          currentWorkspaceId: workspaceRecentOrder[0] || workspaceOrder[0],
+        })
+      } else if (result.success && result.data.length === 0) {
+        const persistResult = await createWorkspaceRepo(defaultWorkspace)
+        if (!persistResult.success) {
+          console.error("Failed to persist default workspace:", persistResult.error)
+        }
+      }
+    }
 
-        renameWorkspace: (workspaceId: string, name: string) => {
-          const trimmedName = name.trim()
-          if (!trimmedName) return
-          const { workspaces } = get()
-          const workspace = workspaces[workspaceId]
-          if (!workspace) return
+    initializeFromRepository().catch(console.error)
 
-          set({
-            workspaces: {
-              ...workspaces,
-              [workspaceId]: {
-                ...workspace,
-                name: trimmedName,
-                updatedAt: new Date(),
-              },
-            },
-          })
-        },
+    return {
+      // Initial state
+      currentWorkspaceId: defaultWorkspace.id,
+      workspaceOrder: [defaultWorkspace.id],
+      workspaceRecentOrder: [defaultWorkspace.id],
+      workspaces: {
+        [defaultWorkspace.id]: defaultWorkspace,
+      },
 
-        deleteWorkspace: (workspaceId: string) => {
-          const { workspaces, workspaceOrder, workspaceRecentOrder, currentWorkspaceId } = get()
-          if (!workspaces[workspaceId]) return
-          if (workspaceOrder.length <= 1) return
+      // Workspace actions
+      setCurrentWorkspace: (workspaceId: string) => {
+        set({ currentWorkspaceId: workspaceId })
+      },
 
-          const nextOrder = workspaceOrder.filter((id) => id !== workspaceId)
-          const nextRecentOrder = workspaceRecentOrder.filter((id) => id !== workspaceId)
-          const nextWorkspaces = { ...workspaces }
-          delete nextWorkspaces[workspaceId]
+      createWorkspace: (name = "New Workspace") => {
+        const newWorkspace = buildWorkspace(name)
+        set((state) => {
+          state.workspaces[newWorkspace.id] = newWorkspace
+          state.workspaceOrder.push(newWorkspace.id)
+          state.workspaceRecentOrder.unshift(newWorkspace.id)
+          state.currentWorkspaceId = newWorkspace.id
+        })
+        createWorkspaceRepo(newWorkspace).catch(console.error)
+        return newWorkspace.id
+      },
 
-          const nextCurrent =
-            currentWorkspaceId === workspaceId
-              ? nextOrder[0]
-              : currentWorkspaceId
-
-          set({
-            workspaces: nextWorkspaces,
-            workspaceOrder: nextOrder,
-            workspaceRecentOrder: nextRecentOrder.length > 0 ? nextRecentOrder : nextOrder,
-            currentWorkspaceId: nextCurrent,
-          })
-        },
-
-        // Date navigation
-        setCurrentDate: (date: Date) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: {
-                ...workspace,
-                currentDateKey: formatDateKey(date),
-                updatedAt: new Date(),
-              },
-            },
-          })
-        },
-
-        goToToday: () => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: {
-                ...workspace,
-                currentDateKey: getTodayKey(),
-                updatedAt: new Date(),
-              },
-            },
-          })
-        },
-
-        goToNextDay: () => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          const currentDate = new Date(workspace.currentDateKey)
-          currentDate.setDate(currentDate.getDate() + 1)
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: {
-                ...workspace,
-                currentDateKey: formatDateKey(currentDate),
-                updatedAt: new Date(),
-              },
-            },
-          })
-        },
-
-        goToPreviousDay: () => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          const currentDate = new Date(workspace.currentDateKey)
-          currentDate.setDate(currentDate.getDate() - 1)
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: {
-                ...workspace,
-                currentDateKey: formatDateKey(currentDate),
-                updatedAt: new Date(),
-              },
-            },
-          })
-        },
-
-        // Page management
-        getCurrentPage: () => {
-          const { currentWorkspaceId, workspaces, getOrCreatePage } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return buildPage(getTodayKey())
-
-          const { currentDateKey } = workspace
-          if (!workspace.pages[currentDateKey]) {
-            return getOrCreatePage(currentDateKey)
+      renameWorkspace: (workspaceId: string, name: string) => {
+        set((state) => {
+          const workspace = state.workspaces[workspaceId]
+          if (workspace) {
+            workspace.name = name
+            workspace.updatedAt = new Date()
           }
-          return workspace.pages[currentDateKey]
-        },
+        })
+        persistWorkspace(workspaceId, { name, updatedAt: new Date() })
+      },
 
-        getOrCreatePage: (dateKey: string) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return buildPage(dateKey)
-          if (workspace.pages[dateKey]) return workspace.pages[dateKey]
+      deleteWorkspace: (workspaceId: string) => {
+        const { workspaceOrder, currentWorkspaceId } = get()
+        if (workspaceOrder.length <= 1) return
 
-          const newPage = buildPage(dateKey)
-          const updatedWorkspace = updateWorkspacePage(workspace, dateKey, newPage)
+        set((state) => {
+          delete state.workspaces[workspaceId]
+          state.workspaceOrder = state.workspaceOrder.filter((id) => id !== workspaceId)
+          state.workspaceRecentOrder = state.workspaceRecentOrder.filter((id) => id !== workspaceId)
+          if (currentWorkspaceId === workspaceId) {
+            state.currentWorkspaceId = state.workspaceOrder[0]
+          }
+        })
+        deleteWorkspaceRepo(workspaceId).catch(console.error)
+      },
 
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: updatedWorkspace,
-            },
+      // Date navigation
+      setCurrentDate: (date: Date) => {
+        const { currentWorkspaceId } = get()
+        const dateKey = formatDateKey(date)
+        set((state) => {
+          const workspace = state.workspaces[currentWorkspaceId]
+          if (workspace) {
+            workspace.currentDateKey = dateKey
+            workspace.updatedAt = new Date()
+          }
+        })
+        persistWorkspace(currentWorkspaceId, { currentDateKey: dateKey, updatedAt: new Date() })
+      },
+
+      goToToday: () => {
+        const { currentWorkspaceId } = get()
+        const todayKey = getTodayKey()
+        set((state) => {
+          const workspace = state.workspaces[currentWorkspaceId]
+          if (workspace) {
+            workspace.currentDateKey = todayKey
+            workspace.updatedAt = new Date()
+          }
+        })
+        persistWorkspace(currentWorkspaceId, { currentDateKey: todayKey, updatedAt: new Date() })
+      },
+
+      goToNextDay: () => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return
+
+        const currentDate = new Date(workspace.currentDateKey)
+        currentDate.setDate(currentDate.getDate() + 1)
+        const nextDateKey = formatDateKey(currentDate)
+
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (ws) {
+            ws.currentDateKey = nextDateKey
+            ws.updatedAt = new Date()
+          }
+        })
+        persistWorkspace(currentWorkspaceId, { currentDateKey: nextDateKey, updatedAt: new Date() })
+      },
+
+      goToPreviousDay: () => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return
+
+        const currentDate = new Date(workspace.currentDateKey)
+        currentDate.setDate(currentDate.getDate() - 1)
+        const prevDateKey = formatDateKey(currentDate)
+
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (ws) {
+            ws.currentDateKey = prevDateKey
+            ws.updatedAt = new Date()
+          }
+        })
+        persistWorkspace(currentWorkspaceId, { currentDateKey: prevDateKey, updatedAt: new Date() })
+      },
+
+      // Page management
+      getCurrentPage: () => {
+        const { currentWorkspaceId, workspaces, getOrCreatePage } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return buildPage(getTodayKey())
+
+        const { currentDateKey } = workspace
+        if (!workspace.pages[currentDateKey]) {
+          return getOrCreatePage(currentDateKey)
+        }
+        return workspace.pages[currentDateKey]
+      },
+
+      getOrCreatePage: (dateKey: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return buildPage(dateKey)
+        if (workspace.pages[dateKey]) return workspace.pages[dateKey]
+
+        const newPage = buildPage(dateKey)
+        const updatedWorkspace = updateWorkspacePage(workspace, dateKey, newPage)
+
+        set({
+          workspaces: {
+            ...workspaces,
+            [currentWorkspaceId]: updatedWorkspace,
+          },
+        })
+
+        // Persist new page and its initial todo
+        ensurePageExists(currentWorkspaceId, newPage).then(() => {
+          if (newPage.todos.length > 0) {
+            persistTodoCreate(currentWorkspaceId, dateKey, newPage, newPage.todos[0])
+          }
+        })
+
+        return newPage
+      },
+
+      // Todo CRUD
+      addTodo: (text = "", afterTodoId?: string, dateKey?: string, level?: number) => {
+        const { currentWorkspaceId, workspaces, getOrCreatePage } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return ""
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey] || getOrCreatePage(targetDateKey)
+        const nextLevel = Math.max(0, Math.min(MAX_TODO_DEPTH, level ?? 0))
+
+        // Sort todos by order to find correct position
+        const sortedTodos = [...page.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+
+        let newOrder: string
+        if (afterTodoId) {
+          const afterIndex = sortedTodos.findIndex((t) => t.id === afterTodoId)
+          if (afterIndex >= 0) {
+            const afterOrder = sortedTodos[afterIndex].order
+            const nextOrder = sortedTodos[afterIndex + 1]?.order ?? null
+            newOrder = generateOrderBetween(afterOrder, nextOrder)
+          } else {
+            // Append at end
+            const lastOrder = sortedTodos[sortedTodos.length - 1]?.order ?? null
+            newOrder = generateOrderBetween(lastOrder, null)
+          }
+        } else {
+          // Append at end
+          const lastOrder = sortedTodos[sortedTodos.length - 1]?.order ?? null
+          newOrder = generateOrderBetween(lastOrder, null)
+        }
+
+        // Determine insertion index for parent chain validation
+        const insertIndex = sortedTodos.findIndex((t) => t.order > newOrder)
+        const normalizedIndex = insertIndex === -1 ? sortedTodos.length : insertIndex
+        const beforeTodo = sortedTodos[normalizedIndex - 1]
+        const afterTodo = sortedTodos[normalizedIndex]
+        const clampedLevel = clampDepthForInsert(
+          nextLevel,
+          MAX_TODO_DEPTH,
+          beforeTodo,
+          afterTodo,
+          sortedTodos,
+          normalizedIndex
+        )
+        const parentId = getParentIdForIndex(sortedTodos, normalizedIndex, clampedLevel)
+
+        const newTodo: TodoItem = {
+          id: uuidv4(),
+          text,
+          status: "todo",
+          tags: extractTags(text),
+          order: newOrder,
+          level: clampedLevel,
+          parentId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (!ws) return
+          const p = ws.pages[targetDateKey]
+          if (!p) return
+          p.todos.push(newTodo)
+          p.updatedAt = new Date()
+        })
+
+        // Persist the new todo
+        persistTodoCreate(currentWorkspaceId, targetDateKey, page, newTodo)
+
+        return newTodo.id
+      },
+
+      updateTodoText: (todoId: string, text: string, dateKey?: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey]
+        if (!page) return
+
+        const todo = page.todos.find((t) => t.id === todoId)
+        if (!todo) return
+
+        const newTags = extractTags(text)
+
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (!ws) return
+          const p = ws.pages[targetDateKey]
+          if (!p) return
+          const t = p.todos.find((t) => t.id === todoId)
+          if (!t) return
+          t.text = text
+          t.tags = newTags
+          t.updatedAt = new Date()
+          p.updatedAt = new Date()
+        })
+
+        // Persist only the changed fields
+        persistTodoUpdate(todoId, { text, tags: newTags })
+      },
+
+      updateTodoLevel: (todoId: string, direction: "indent" | "outdent", dateKey?: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey]
+        if (!page) return
+
+        const todo = page.todos.find((t) => t.id === todoId)
+        if (!todo) return
+
+        const sortedTodos = [...page.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+        const todoIndex = sortedTodos.findIndex((t) => t.id === todoId)
+        const prevTodo = todoIndex > 0 ? sortedTodos[todoIndex - 1] : null
+
+        let newLevel: number
+        if (direction === "indent") {
+          if (!prevTodo) return
+          newLevel = Math.min(MAX_TODO_DEPTH, prevTodo.level + 1)
+        } else {
+          newLevel = Math.max(0, todo.level - 1)
+        }
+
+        if (newLevel === todo.level) return
+
+        const parentId = getParentIdForIndex(sortedTodos, todoIndex, newLevel)
+
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (!ws) return
+          const p = ws.pages[targetDateKey]
+          if (!p) return
+          const t = p.todos.find((t) => t.id === todoId)
+          if (!t) return
+          t.level = newLevel
+          t.parentId = parentId
+          t.updatedAt = new Date()
+          p.updatedAt = new Date()
+        })
+
+        // Persist only the level change
+        persistTodoUpdate(todoId, { level: newLevel, parentId })
+      },
+
+      toggleTodo: (todoId: string, dateKey?: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return false
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey]
+        if (!page) return false
+
+        const todo = page.todos.find((t) => t.id === todoId)
+        if (!todo) return false
+
+        const newStatus: TodoStatus = todo.status === "done" ? "todo" : "done"
+
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (!ws) return
+          const p = ws.pages[targetDateKey]
+          if (!p) return
+          const t = p.todos.find((t) => t.id === todoId)
+          if (!t) return
+          t.status = newStatus
+          t.updatedAt = new Date()
+          p.updatedAt = new Date()
+        })
+
+        // Persist only the status change
+        persistTodoUpdate(todoId, { status: newStatus })
+
+        return true
+      },
+
+      deleteTodo: (todoId: string, dateKey?: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey]
+        if (!page) return
+
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (!ws) return
+          const p = ws.pages[targetDateKey]
+          if (!p) return
+          p.todos = p.todos.filter((t) => t.id !== todoId)
+          p.updatedAt = new Date()
+        })
+
+        // Persist the deletion
+        persistTodoDelete(todoId)
+      },
+
+      moveTodo: (todoId: string, direction: "up" | "down", dateKey?: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey]
+        if (!page) return
+
+        // Sort todos by order
+        const sortedTodos = [...page.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+        const activeIndex = sortedTodos.findIndex((t) => t.id === todoId)
+        if (activeIndex < 0) return
+
+        // Build subtree block
+        const activeTodo = sortedTodos[activeIndex]
+        let endIndex = activeIndex + 1
+        while (endIndex < sortedTodos.length && sortedTodos[endIndex].level > activeTodo.level) {
+          endIndex += 1
+        }
+
+        const block = sortedTodos.slice(activeIndex, endIndex)
+        const remaining = sortedTodos.filter((t) => !block.some((b) => b.id === t.id))
+
+        const insertIndex = direction === "up"
+          ? Math.max(0, activeIndex - 1)
+          : Math.min(remaining.length, activeIndex + 1)
+
+        const beforeId = remaining[insertIndex - 1]?.id ?? null
+        const afterId = remaining[insertIndex]?.id ?? null
+
+        get().reorderTodos(todoId, beforeId, afterId, activeTodo.level, targetDateKey)
+      },
+
+      reorderTodos: (activeId: string, beforeId: string | null, afterId: string | null, newDepth: number, dateKey?: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey]
+        if (!page) return
+
+        const sortedTodos = [...page.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+        const activeIndex = sortedTodos.findIndex((t) => t.id === activeId)
+        if (activeIndex < 0) return
+
+        const activeTodo = sortedTodos[activeIndex]
+        let endIndex = activeIndex + 1
+        while (endIndex < sortedTodos.length && sortedTodos[endIndex].level > activeTodo.level) {
+          endIndex += 1
+        }
+
+        const block = sortedTodos.slice(activeIndex, endIndex)
+        const blockIds = new Set(block.map((t) => t.id))
+        const remaining = sortedTodos.filter((t) => !blockIds.has(t.id))
+
+        const beforeTodo = beforeId ? remaining.find((t) => t.id === beforeId) : undefined
+        const afterTodo = afterId ? remaining.find((t) => t.id === afterId) : undefined
+
+        const beforeOrder = beforeTodo?.order ?? null
+        const afterOrder = afterTodo?.order ?? null
+
+        const maxDescendantDelta = block.reduce(
+          (max, t) => Math.max(max, t.level - activeTodo.level),
+          0
+        )
+        const maxDepthAllowed = Math.max(0, MAX_TODO_DEPTH - maxDescendantDelta)
+
+        let insertIndex = 0
+        if (beforeTodo) {
+          const beforeIndex = remaining.findIndex((t) => t.id === beforeTodo.id)
+          insertIndex = beforeIndex + 1
+        } else if (afterTodo) {
+          const afterIndex = remaining.findIndex((t) => t.id === afterTodo.id)
+          insertIndex = Math.max(0, afterIndex)
+        } else {
+          insertIndex = remaining.length
+        }
+
+        const clampedDepth = clampDepthForInsert(
+          newDepth,
+          maxDepthAllowed,
+          beforeTodo,
+          afterTodo,
+          remaining,
+          insertIndex
+        )
+
+        const newOrders = generateNKeysBetween(beforeOrder, afterOrder, block.length)
+        const blockWithLevels = block.map((t, index) => ({
+          ...t,
+          order: newOrders[index],
+          level: clampedDepth + (t.level - activeTodo.level),
+        }))
+
+        const combined = [
+          ...remaining.slice(0, insertIndex),
+          ...blockWithLevels,
+          ...remaining.slice(insertIndex),
+        ]
+
+        const updatedBlock = blockWithLevels.map((t) => {
+          const itemIndex = combined.findIndex((c) => c.id === t.id)
+          const parentId = getParentIdForIndex(combined, itemIndex, t.level)
+          return { ...t, parentId }
+        })
+
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (!ws) return
+          const p = ws.pages[targetDateKey]
+          if (!p) return
+
+          const updateMap = new Map(updatedBlock.map((t) => [t.id, t]))
+          p.todos = p.todos.map((t) => {
+            const updated = updateMap.get(t.id)
+            if (!updated) return t
+            return {
+              ...t,
+              order: updated.order,
+              level: updated.level,
+              parentId: updated.parentId ?? null,
+              updatedAt: new Date(),
+            }
           })
+          p.updatedAt = new Date()
+        })
 
-          return newPage
-        },
+        for (const updated of updatedBlock) {
+          persistTodoUpdate(updated.id, {
+            order: updated.order,
+            level: updated.level,
+            parentId: updated.parentId ?? null,
+          })
+        }
+      },
 
-        // Todo CRUD
-        addTodo: (text = "", afterTodoId?: string, dateKey?: string, level?: number) => {
-          const { currentWorkspaceId, workspaces, getOrCreatePage } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return ""
+      getTodo: (todoId: string, dateKey?: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return undefined
 
-          const targetDateKey = dateKey || workspace.currentDateKey
-          const page = workspace.pages[targetDateKey] || getOrCreatePage(targetDateKey)
-          const nextLevel = Math.max(0, Math.min(3, level ?? 0))
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey]
+        if (!page) return undefined
+
+        return page.todos.find((t) => t.id === todoId)
+      },
+
+      rollOverTodosToToday: () => {
+        const { currentWorkspaceId, workspaces, getOrCreatePage } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return 0
+
+        const todayKey = getTodayKey()
+        const todayPage = workspace.pages[todayKey] || getOrCreatePage(todayKey)
+
+        // Get existing order values in today's page
+        const sortedTodayTodos = [...todayPage.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+        let lastOrder = sortedTodayTodos[sortedTodayTodos.length - 1]?.order ?? null
+
+        // Find incomplete todos from previous days
+        const incompleteTodos: { todo: TodoItem; fromDate: string }[] = []
+        for (const [dateKey, page] of Object.entries(workspace.pages)) {
+          if (dateKey >= todayKey) continue
+          for (const todo of page.todos) {
+            if (todo.status === "todo" && !isBlankText(todo.text)) {
+              incompleteTodos.push({ todo, fromDate: dateKey })
+            }
+          }
+        }
+
+        if (incompleteTodos.length === 0) return 0
+
+        // Create new todos for today with new orders
+        const newTodos: TodoItem[] = []
+        for (const { todo } of incompleteTodos) {
+          const newOrder = generateOrderBetween(lastOrder, null)
+          lastOrder = newOrder
 
           const newTodo: TodoItem = {
             id: uuidv4(),
-            text,
+            text: todo.text,
             status: "todo",
-            tags: extractTags(text),
-            order: 0,
-            level: nextLevel,
+            tags: [...todo.tags],
+            order: newOrder,
+            level: 0,
             createdAt: new Date(),
             updatedAt: new Date(),
           }
-
-          let newTodos: TodoItem[]
-
-          if (afterTodoId) {
-            // Insert after the specified todo
-            const afterIndex = page.todos.findIndex((t) => t.id === afterTodoId)
-            if (afterIndex !== -1) {
-              newTodos = [
-                ...page.todos.slice(0, afterIndex + 1),
-                newTodo,
-                ...page.todos.slice(afterIndex + 1),
-              ]
-            } else {
-              // If afterTodoId not found, add at end
-              newTodos = [...page.todos, newTodo]
-            }
-          } else {
-            // No afterTodoId specified, add at end
-            newTodos = [...page.todos, newTodo]
-          }
-
-          // Recalculate order for all todos
-          newTodos.forEach((todo, index) => {
-            todo.order = index
-          })
-
-          const updatedPage: JournalPage = {
-            ...page,
-            todos: newTodos,
-            updatedAt: new Date(),
-          }
-
-          const updatedWorkspace = updateWorkspacePage(
-            workspace,
-            targetDateKey,
-            updatedPage
-          )
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: updatedWorkspace,
-            },
-          })
-
-          return newTodo.id
-        },
-
-        updateTodoText: (todoId: string, text: string, dateKey?: string) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          const targetDateKey = dateKey || workspace.currentDateKey
-          const page = workspace.pages[targetDateKey]
-          if (!page) return
-
-          const updatedTodos = page.todos.map((todo) =>
-            todo.id === todoId
-              ? { ...todo, text, tags: extractTags(text), updatedAt: new Date() }
-              : todo
-          )
-
-          const updatedPage: JournalPage = {
-            ...page,
-            todos: updatedTodos,
-            updatedAt: new Date(),
-          }
-
-          const updatedWorkspace = updateWorkspacePage(
-            workspace,
-            targetDateKey,
-            updatedPage
-          )
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: updatedWorkspace,
-            },
-          })
-        },
-
-        toggleTodo: (todoId: string, dateKey?: string) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return false
-
-          const targetDateKey = dateKey || workspace.currentDateKey
-          const page = workspace.pages[targetDateKey]
-          if (!page) return false
-
-          const currentIndex = page.todos.findIndex((todo) => todo.id === todoId)
-          if (currentIndex === -1) return false
-
-          const currentTodo = page.todos[currentIndex]
-          const currentStatus = normalizeStatus(currentTodo.status)
-          const nextStatus: TodoStatus = currentStatus === "done" ? "todo" : "done"
-
-          if (nextStatus === "done") {
-            const currentLevel = currentTodo.level
-            for (let i = currentIndex + 1; i < page.todos.length; i += 1) {
-              if (page.todos[i].level <= currentLevel) break
-              if (normalizeStatus(page.todos[i].status) !== "done") {
-                return false
-              }
-            }
-          }
-
-          const updatedTodos = page.todos.map((todo, index) =>
-            index === currentIndex
-              ? { ...todo, status: nextStatus, updatedAt: new Date() }
-              : todo
-          )
-
-          const updatedPage: JournalPage = {
-            ...page,
-            todos: updatedTodos,
-            updatedAt: new Date(),
-          }
-
-          const updatedWorkspace = updateWorkspacePage(
-            workspace,
-            targetDateKey,
-            updatedPage
-          )
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: updatedWorkspace,
-            },
-          })
-
-          return true
-        },
-
-        deleteTodo: (todoId: string, dateKey?: string) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          const targetDateKey = dateKey || workspace.currentDateKey
-          const page = workspace.pages[targetDateKey]
-          if (!page) return
-
-          const updatedTodos = page.todos
-            .filter((todo) => todo.id !== todoId)
-            .map((todo, index) => ({ ...todo, order: index }))
-
-          // Ensure there's always at least one todo
-          if (updatedTodos.length === 0) {
-            updatedTodos.push({
-              id: uuidv4(),
-              text: "",
-              status: "todo",
-              tags: [],
-              order: 0,
-              level: 0,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            })
-          }
-
-          const updatedPage: JournalPage = {
-            ...page,
-            todos: updatedTodos,
-            updatedAt: new Date(),
-          }
-
-          const updatedWorkspace = updateWorkspacePage(
-            workspace,
-            targetDateKey,
-            updatedPage
-          )
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: updatedWorkspace,
-            },
-          })
-        },
-
-        moveTodo: (todoId: string, direction: "up" | "down", dateKey?: string) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          const targetDateKey = dateKey || workspace.currentDateKey
-          const page = workspace.pages[targetDateKey]
-          if (!page) return
-
-          const currentIndex = page.todos.findIndex((todo) => todo.id === todoId)
-          if (currentIndex === -1) return
-
-          const currentTodo = page.todos[currentIndex]
-          const findBlockEnd = (startIndex: number) => {
-            const rootLevel = page.todos[startIndex].level
-            let endIndex = startIndex
-
-            for (let i = startIndex + 1; i < page.todos.length; i++) {
-              if (page.todos[i].level > rootLevel) {
-                endIndex = i
-              } else {
-                break
-              }
-            }
-
-            return endIndex
-          }
-
-          const currentBlockEnd = findBlockEnd(currentIndex)
-          let newTodos: typeof page.todos
-
-          if (direction === "up") {
-            let prevRootIndex = currentIndex - 1
-
-            while (prevRootIndex >= 0 && page.todos[prevRootIndex].level > currentTodo.level) {
-              prevRootIndex -= 1
-            }
-
-            if (prevRootIndex < 0) return
-            if (page.todos[prevRootIndex].level !== currentTodo.level) return
-
-            const prevBlockEnd = findBlockEnd(prevRootIndex)
-
-            const beforePrev = page.todos.slice(0, prevRootIndex)
-            const prevBlock = page.todos.slice(prevRootIndex, prevBlockEnd + 1)
-            const currentBlock = page.todos.slice(currentIndex, currentBlockEnd + 1)
-            const afterCurrent = page.todos.slice(currentBlockEnd + 1)
-
-            newTodos = [...beforePrev, ...currentBlock, ...prevBlock, ...afterCurrent]
-          } else {
-            const nextRootIndex = currentBlockEnd + 1
-            if (nextRootIndex >= page.todos.length) return
-            if (page.todos[nextRootIndex].level !== currentTodo.level) return
-
-            const nextBlockEnd = findBlockEnd(nextRootIndex)
-
-            const beforeCurrent = page.todos.slice(0, currentIndex)
-            const currentBlock = page.todos.slice(currentIndex, currentBlockEnd + 1)
-            const nextBlock = page.todos.slice(nextRootIndex, nextBlockEnd + 1)
-            const afterNext = page.todos.slice(nextBlockEnd + 1)
-
-            newTodos = [...beforeCurrent, ...nextBlock, ...currentBlock, ...afterNext]
-          }
-
-          // Update order numbers
-          newTodos.forEach((todo, index) => {
-            todo.order = index
-          })
-
-          const updatedPage: JournalPage = {
-            ...page,
-            todos: newTodos,
-            updatedAt: new Date(),
-          }
-
-          const updatedWorkspace = updateWorkspacePage(
-            workspace,
-            targetDateKey,
-            updatedPage
-          )
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: updatedWorkspace,
-            },
-          })
-        },
-
-        reorderTodos: (
-          activeId: string,
-          overId: string,
-          newDepth: number,
-          dateKey?: string
-        ) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          const targetDateKey = dateKey || workspace.currentDateKey
-          const page = workspace.pages[targetDateKey]
-          if (!page) return
-
-          // Following official SortableTree handleDragEnd logic exactly
-          const activeIndex = page.todos.findIndex((todo) => todo.id === activeId)
-          const overIndex = page.todos.findIndex((todo) => todo.id === overId)
-          if (activeIndex === -1 || overIndex === -1) return
-
-          const activeTodo = page.todos[activeIndex]
-          const depthDiff = newDepth - activeTodo.level
-
-          // Find the block of todos to move (active todo + its children)
-          const findBlockEnd = (startIndex: number) => {
-            const rootLevel = page.todos[startIndex].level
-            let endIndex = startIndex
-
-            for (let i = startIndex + 1; i < page.todos.length; i++) {
-              if (page.todos[i].level > rootLevel) {
-                endIndex = i
-              } else {
-                break
-              }
-            }
-
-            return endIndex
-          }
-
-          const activeBlockEnd = findBlockEnd(activeIndex)
-          const blockSize = activeBlockEnd - activeIndex + 1
-
-          // Clone todos and update depths for the active block
-          const clonedTodos = page.todos.map((todo, index) => {
-            if (index >= activeIndex && index <= activeBlockEnd) {
-              return {
-                ...todo,
-                level: Math.max(0, Math.min(3, todo.level + depthDiff)),
-                updatedAt: new Date(),
-              }
-            }
-            return { ...todo }
-          })
-
-          // Use arrayMove logic: move the block to the over position
-          // Calculate target index accounting for block movement
-          let targetIndex = overIndex
-          if (activeIndex < overIndex) {
-            // Moving down: target is after the over item, minus the block we're removing
-            targetIndex = overIndex - blockSize + 1
-          }
-
-          // Extract the block
-          const block = clonedTodos.splice(activeIndex, blockSize)
-
-          // Adjust target index if we removed items before it
-          if (activeIndex < targetIndex) {
-            targetIndex = Math.min(targetIndex, clonedTodos.length)
-          }
-
-          // Insert the block at the target position
-          clonedTodos.splice(targetIndex, 0, ...block)
-
-          // Update order numbers
-          clonedTodos.forEach((todo, index) => {
-            todo.order = index
-          })
-
-          const updatedPage: JournalPage = {
-            ...page,
-            todos: clonedTodos,
-            updatedAt: new Date(),
-          }
-
-          const updatedWorkspace = updateWorkspacePage(
-            workspace,
-            targetDateKey,
-            updatedPage
-          )
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: updatedWorkspace,
-            },
-          })
-        },
-
-        updateTodoLevel: (todoId: string, direction: "indent" | "outdent", dateKey?: string) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return
-
-          const targetDateKey = dateKey || workspace.currentDateKey
-          const page = workspace.pages[targetDateKey]
-          if (!page) return
-
-          const currentIndex = page.todos.findIndex((todo) => todo.id === todoId)
-          if (currentIndex === -1) return
-
-          const currentTodo = page.todos[currentIndex]
-          let newLevel = currentTodo.level
-
-          // Find children (consecutive items after current with higher level)
-          const children: number[] = []
-          for (let i = currentIndex + 1; i < page.todos.length; i++) {
-            if (page.todos[i].level > currentTodo.level) {
-              children.push(i)
-            } else {
-              break // Stop when we reach an item at same or lower level
-            }
-          }
-
-          if (direction === "indent") {
-            // Indent one level, but never deeper than the previous todo allows.
-            if (currentIndex > 0) {
-              const prevTodo = page.todos[currentIndex - 1]
-              const targetLevel = Math.min(
-                3,
-                Math.min(currentTodo.level + 1, prevTodo.level + 1)
-              )
-              if (targetLevel > currentTodo.level) {
-                newLevel = targetLevel
-              }
-            }
-          } else if (direction === "outdent") {
-            // Can outdent if level > 0
-            if (currentTodo.level > 0) {
-              newLevel = currentTodo.level - 1
-            }
-          }
-
-          // Only update if level actually changed
-          if (newLevel !== currentTodo.level) {
-            const levelDiff = newLevel - currentTodo.level
-
-            const updatedTodos = page.todos.map((todo, index) => {
-              if (index === currentIndex) {
-                // Update the current todo
-                return { ...todo, level: newLevel, updatedAt: new Date() }
-              }
-              if (children.includes(index)) {
-                // Update children with the same level difference
-                const childNewLevel = Math.max(0, Math.min(3, todo.level + levelDiff))
-                return { ...todo, level: childNewLevel, updatedAt: new Date() }
-              }
-              return todo
-            })
-
-            const updatedPage: JournalPage = {
-              ...page,
-              todos: updatedTodos,
-              updatedAt: new Date(),
-            }
-
-            const updatedWorkspace = updateWorkspacePage(
-              workspace,
-              targetDateKey,
-              updatedPage
-            )
-
-            set({
-              workspaces: {
-                ...workspaces,
-                [currentWorkspaceId]: updatedWorkspace,
-              },
-            })
-          }
-        },
-
-        getTodo: (todoId: string, dateKey?: string) => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return undefined
-
-          const targetDateKey = dateKey || workspace.currentDateKey
-          const page = workspace.pages[targetDateKey]
-          if (!page) return undefined
-
-          return page.todos.find((todo) => todo.id === todoId)
-        },
-
-        rollOverTodosToToday: () => {
-          const { currentWorkspaceId, workspaces } = get()
-          const workspace = workspaces[currentWorkspaceId]
-          if (!workspace) return 0
-
-          const todayKey = getTodayKey()
-          const pages = workspace.pages
-          const updatedPages: Record<string, JournalPage> = { ...pages }
-          const movedTodos: TodoItem[] = []
-
-          const dateKeys = Object.keys(pages).filter((key) => key < todayKey)
-          dateKeys.sort()
-
-          dateKeys.forEach((dateKey) => {
-            const page = pages[dateKey]
-            if (!page) return
-
-            const remaining: TodoItem[] = []
-            const rolling: TodoItem[] = []
-
-            for (let i = 0; i < page.todos.length; i += 1) {
-              const todo = page.todos[i]
-              const rawStatus = (todo as { status?: unknown }).status
-              const rawText = (todo as { text?: unknown }).text
-
-              if (isBlankText(rawText)) {
-                remaining.push(todo)
-                const currentLevel = todo.level
-
-                for (let j = i + 1; j < page.todos.length; j += 1) {
-                  const child = page.todos[j]
-                  if (child.level <= currentLevel) break
-                  remaining.push(child)
-                  i = j
-                }
-                continue
-              }
-
-              if (!isTodoStatus(rawStatus)) {
-                remaining.push(todo)
-                const currentLevel = todo.level
-
-                for (let j = i + 1; j < page.todos.length; j += 1) {
-                  const child = page.todos[j]
-                  if (child.level <= currentLevel) break
-                  remaining.push(child)
-                  i = j
-                }
-                continue
-              }
-
-              if (normalizeStatus(todo.status) === "done") {
-                remaining.push(todo)
-              } else {
-                rolling.push(todo)
-              }
-            }
-
-            if (rolling.length === 0) return
-            movedTodos.push(...rolling)
-
-            let finalRemaining = remaining
-            if (finalRemaining.length === 0) {
-              finalRemaining = [
-                {
-                  id: uuidv4(),
-                  text: "",
-                  status: "todo",
-                  tags: [],
-                  order: 0,
-                  level: 0,
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                },
-              ]
-            }
-
-            finalRemaining = finalRemaining.map((todo, index) => ({
-              ...todo,
-              order: index,
-            }))
-
-            updatedPages[dateKey] = {
-              ...page,
-              todos: finalRemaining,
-              updatedAt: new Date(),
-            }
-          })
-
-          if (movedTodos.length === 0) return 0
-
-          const todayPage = pages[todayKey] ?? buildPage(todayKey)
-          const combined = [...todayPage.todos, ...movedTodos]
-          const reindexed = combined.map((todo, index) => ({
-            ...todo,
-            order: index,
-          }))
-
-          updatedPages[todayKey] = {
-            ...todayPage,
-            todos: reindexed,
-            updatedAt: new Date(),
-          }
-
-          const updatedWorkspace: Workspace = {
-            ...workspace,
-            pages: updatedPages,
-            updatedAt: new Date(),
-          }
-
-          set({
-            workspaces: {
-              ...workspaces,
-              [currentWorkspaceId]: updatedWorkspace,
-            },
-          })
-
-          return movedTodos.length
-        },
-      }
-    }),
-    {
-      name: "journal-storage",
-      version: 8,
-      migrate: (state, version) => {
-        if (version >= 8) return state as JournalStore
-
-        const persistedState = state as Partial<JournalStore> & {
-          pages?: Record<string, JournalPage>
-          currentDateKey?: string
+          newTodos.push(newTodo)
         }
 
-        if (persistedState.workspaces && persistedState.currentWorkspaceId) {
-          const order =
-            persistedState.workspaceOrder ?? Object.keys(persistedState.workspaces)
+        set((state) => {
+          const ws = state.workspaces[currentWorkspaceId]
+          if (!ws) return
 
-          return {
-            currentWorkspaceId: persistedState.currentWorkspaceId,
-            workspaceOrder: order,
-            workspaceRecentOrder: persistedState.workspaceRecentOrder ?? order,
-            workspaces: persistedState.workspaces,
-          } as JournalStore
-        }
+          // Add new todos to today
+          const today = ws.pages[todayKey]
+          if (today) {
+            today.todos.push(...newTodos)
+            today.updatedAt = new Date()
+          }
 
-        const legacyPages = persistedState.pages ?? {}
-        const legacyDateKey = persistedState.currentDateKey ?? getTodayKey()
-        const defaultWorkspace = buildWorkspace("Default", {
-          pages: legacyPages,
-          currentDateKey: legacyDateKey,
+          // Mark original todos as done
+          for (const { todo, fromDate } of incompleteTodos) {
+            const page = ws.pages[fromDate]
+            if (page) {
+              const t = page.todos.find((t) => t.id === todo.id)
+              if (t) {
+                t.status = "done"
+                t.updatedAt = new Date()
+              }
+              page.updatedAt = new Date()
+            }
+          }
         })
 
-        return {
-          currentWorkspaceId: defaultWorkspace.id,
-          workspaceOrder: [defaultWorkspace.id],
-          workspaceRecentOrder: [defaultWorkspace.id],
-          workspaces: {
-            [defaultWorkspace.id]: defaultWorkspace,
-          },
-        } as JournalStore
+        // Persist all changes
+        for (const newTodo of newTodos) {
+          persistTodoCreate(currentWorkspaceId, todayKey, todayPage, newTodo)
+        }
+        for (const { todo } of incompleteTodos) {
+          persistTodoUpdate(todo.id, { status: "done" })
+        }
+
+        return incompleteTodos.length
       },
     }
-  )
+  })
 )

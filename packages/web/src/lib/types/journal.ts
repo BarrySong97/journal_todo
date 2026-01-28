@@ -5,8 +5,9 @@ export interface TodoItem {
   text: string
   status: TodoStatus
   tags: string[]
-  order: number
+  order: string // Fractional index for efficient reordering (e.g., "a0", "a0V", "a1")
   level: number // 0 = top level, 1+ = nested levels
+  parentId?: string | null
   createdAt: Date
   updatedAt: Date
 }

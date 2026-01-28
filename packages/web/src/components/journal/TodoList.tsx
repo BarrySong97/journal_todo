@@ -23,6 +23,7 @@ import {
 } from "@dnd-kit/core"
 import {
   SortableContext,
+  arrayMove,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
@@ -67,6 +68,8 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
     const {
       currentPage,
       currentWorkspaceId,
+      currentDateKey,
+      getOrCreatePage,
       updateTodoText,
       toggleTodo,
       addTodo,
@@ -75,6 +78,13 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       reorderTodos,
       updateTodoLevel,
     } = useJournal()
+
+    // Ensure page exists - create if needed (in useEffect to avoid render-time state updates)
+    useEffect(() => {
+      if (!currentPage) {
+        getOrCreatePage(currentDateKey)
+      }
+    }, [currentPage, currentDateKey, getOrCreatePage])
 
     // UI state
     const [activeTodoId, setActiveTodoId] = useState<string | null>(null)
@@ -106,9 +116,12 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       })
     )
 
+    // Get todos safely (empty array if page doesn't exist yet)
+    const todos = currentPage?.todos ?? []
+
     // Flatten todos and compute parent IDs
-    const flattenedTodos = useMemo(() => flattenTodos(currentPage.todos), [currentPage.todos])
-    const parentIds = useMemo(() => getParentIds(currentPage.todos), [currentPage.todos])
+    const flattenedTodos = useMemo(() => flattenTodos(todos), [todos])
+    const parentIds = useMemo(() => getParentIds(todos), [todos])
 
     // Compute visible todos (collapsed + hide children of dragged item)
     // Following official SortableTree pattern exactly
@@ -173,12 +186,21 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
           const overId = String(over.id)
           const { depth } = projected
 
-          reorderTodos(activeId, overId, depth)
+          const visibleIds = visibleTodos.map((todo) => todo.id)
+          const activeIndex = visibleIds.indexOf(activeId)
+          const overIndex = visibleIds.indexOf(overId)
+          if (activeIndex !== -1 && overIndex !== -1) {
+            const reordered = arrayMove(visibleIds, activeIndex, overIndex)
+            const newIndex = reordered.indexOf(activeId)
+            const beforeId = reordered[newIndex - 1] ?? null
+            const afterId = reordered[newIndex + 1] ?? null
+            reorderTodos(activeId, beforeId, afterId, depth)
+          }
         }
 
         resetDragState()
       },
-      [reorderTodos, projected]
+      [reorderTodos, projected, visibleTodos]
     )
 
     const handleDragCancel = useCallback(() => {
@@ -235,7 +257,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
     const copySelectedTodos = useCallback(() => {
       const INDENT = "  "
-      const texts = currentPage.todos
+      const texts = visibleTodos
         .filter((todo) => selectedTodoSet.has(todo.id))
         .map((todo) => `${INDENT.repeat(todo.level)}${todo.text}`)
         .filter((text) => text.trim().length > 0)
@@ -264,11 +286,11 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       }
 
       void writeText()
-    }, [currentPage.todos, selectedTodoSet])
+    }, [visibleTodos, selectedTodoSet])
 
     // Keyboard handling
     const { handleKeyDown } = useTodoKeyboard({
-      todos: currentPage.todos,
+      todos: visibleTodos,
       activeTodoId,
       focusTodo,
       addTodo,
@@ -282,30 +304,31 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
     })
 
     // Focus management
+    const currentDate = currentPage?.date
     useEffect(() => {
-      if (prevDateRef.current === currentPage.date) return
-      prevDateRef.current = currentPage.date
-      if (currentPage.todos.length === 0) return
-      const firstTodo = currentPage.todos[0]
+      if (!currentDate || prevDateRef.current === currentDate) return
+      prevDateRef.current = currentDate
+      if (todos.length === 0) return
+      const firstTodo = todos[0]
       setTimeout(() => {
         setActiveTodoId(firstTodo.id)
         focusTodo(firstTodo.id)
       }, 0)
-    }, [currentPage.date, currentPage.todos, focusTodo])
+    }, [currentDate, todos, focusTodo])
 
     useEffect(() => {
       const prevWorkspaceId = prevWorkspaceIdRef.current
       if (prevWorkspaceId === currentWorkspaceId) return
       prevWorkspaceIdRef.current = currentWorkspaceId
 
-      if (currentPage.todos.length === 0) return
-      const firstTodo = currentPage.todos[0]
+      if (todos.length === 0) return
+      const firstTodo = todos[0]
       clearSelection()
       setActiveTodoId(firstTodo.id)
       setTimeout(() => {
         focusTodo(firstTodo.id)
       }, 0)
-    }, [currentWorkspaceId, currentPage.todos, focusTodo, clearSelection])
+    }, [currentWorkspaceId, todos, focusTodo, clearSelection])
 
     // Event handlers for TodoItem
     const handleTextChange = (todoId: string, text: string) => {
@@ -382,7 +405,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       [ref]
     )
 
-    if (currentPage.todos.length === 0) {
+    if (todos.length === 0) {
       return (
         <div className="text-center text-muted-foreground py-8">
           <p>No todos for this day yet.</p>
