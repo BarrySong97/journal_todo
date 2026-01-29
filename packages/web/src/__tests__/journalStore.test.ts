@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { useJournalStore } from "../lib/stores/journalStore"
-import { getTodayKey } from "../lib/utils/dateUtils"
+import { getTodayKey, formatDateKey } from "../lib/utils/dateUtils"
 import type { JournalPage, TodoItem, Workspace } from "../lib/types/journal"
 
 const apiMocks = vi.hoisted(() => ({
@@ -54,6 +54,32 @@ const setStoreState = (todos: TodoItem[]) => {
     name: "Test",
     pages: { [dateKey]: page },
     currentDateKey: dateKey,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+
+  useJournalStore.setState({
+    currentWorkspaceId: workspaceId,
+    workspaceOrder: [workspaceId],
+    workspaceRecentOrder: [workspaceId],
+    workspaces: { [workspaceId]: workspace },
+  })
+
+  return { workspaceId, dateKey }
+}
+
+const setStoreStateWithDate = (dateKey: string, todos: TodoItem[], workspaceId = "ws-test") => {
+  const page: JournalPage = {
+    date: dateKey,
+    todos,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+  const workspace: Workspace = {
+    id: workspaceId,
+    name: "Test",
+    pages: { [dateKey]: page },
+    currentDateKey: getTodayKey(),
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -150,6 +176,78 @@ describe("journalStore reorder and hierarchy", () => {
 
     const todo = useJournalStore.getState().workspaces[workspaceId].pages[dateKey].todos.find((t) => t.id === "p1")
     expect(todo?.level).toBe(0)
+  })
+
+  it("updateTodoLevel indents a parent with its children", () => {
+    const { dateKey, workspaceId } = setStoreState([
+      makeTodo("p1", "a0", 0, null),
+      makeTodo("c1", "a0V", 1, "p1"),
+      makeTodo("p2", "a1", 0, null),
+    ])
+
+    const { updateTodoLevel } = useJournalStore.getState()
+    updateTodoLevel("p2", "indent", dateKey)
+
+    const todos = useJournalStore.getState().workspaces[workspaceId].pages[dateKey].todos
+    const parent = todos.find((t) => t.id === "p2")
+    expect(parent?.level).toBe(1)
+  })
+
+  it("updateTodoLevel outdents a parent with its children", () => {
+    const { dateKey, workspaceId } = setStoreState([
+      makeTodo("p1", "a0", 0, null),
+      makeTodo("p2", "a1", 1, "p1"),
+      makeTodo("c1", "a1V", 2, "p2"),
+    ])
+
+    const { updateTodoLevel } = useJournalStore.getState()
+    updateTodoLevel("p2", "outdent", dateKey)
+
+    const todos = useJournalStore.getState().workspaces[workspaceId].pages[dateKey].todos
+    const parent = todos.find((t) => t.id === "p2")
+    const child = todos.find((t) => t.id === "c1")
+
+    expect(parent?.level).toBe(0)
+    expect(child?.level).toBe(1)
+  })
+
+  it("rollOverTodosToToday moves yesterday todos and preserves structure", () => {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const yesterdayKey = formatDateKey(yesterday)
+    const todayKey = getTodayKey()
+
+    const { workspaceId } = setStoreStateWithDate(yesterdayKey, [
+      makeTodo("p1", "a0", 0, null),
+      makeTodo("c1", "a0V", 1, "p1"),
+      makeTodo("p2", "a1", 0, null),
+    ])
+
+    // Ensure today page exists
+    useJournalStore.setState((state) => {
+      const ws = state.workspaces[workspaceId]
+      if (!ws) return
+      ws.pages[todayKey] = {
+        date: todayKey,
+        todos: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    })
+
+    const { rollOverTodosToToday } = useJournalStore.getState()
+    const movedCount = rollOverTodosToToday()
+
+    const ws = useJournalStore.getState().workspaces[workspaceId]
+    const todayPage = ws.pages[todayKey]
+    const yesterdayPage = ws.pages[yesterdayKey]
+
+    expect(movedCount).toBe(3)
+    expect(todayPage.todos.map((t) => t.id)).toEqual(["p1", "c1", "p2"])
+    expect(todayPage.todos.find((t) => t.id === "p1")?.level).toBe(0)
+    expect(todayPage.todos.find((t) => t.id === "c1")?.level).toBe(1)
+    expect(yesterdayPage.todos).toHaveLength(0)
   })
 
   it("persists reorder changes for each moved item", () => {

@@ -12,7 +12,7 @@ import { TodoItem } from "./TodoItem"
 import type { FlattenedTodo } from "./todoTreeUtils"
 
 const animateLayoutChanges: AnimateLayoutChanges = ({ isSorting, wasDragging }) =>
-  isSorting || wasDragging ? false : true
+  isSorting || wasDragging
 
 interface SortableTodoItemProps {
   todo: FlattenedTodo

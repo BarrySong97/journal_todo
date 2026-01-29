@@ -44,6 +44,22 @@ const generateFirstOrder = (): string => {
 
 const MAX_TODO_DEPTH = 3
 
+const deriveParentMap = (items: TodoItem[]): Map<string, string | null> => {
+  const parentMap = new Map<string, string | null>()
+  const stack: { id: string; level: number }[] = []
+
+  for (const item of items) {
+    while (stack.length > 0 && stack[stack.length - 1].level >= item.level) {
+      stack.pop()
+    }
+    const parentId = stack.length > 0 ? stack[stack.length - 1].id : null
+    parentMap.set(item.id, parentId)
+    stack.push({ id: item.id, level: item.level })
+  }
+
+  return parentMap
+}
+
 const getParentIdForIndex = (items: TodoItem[], index: number, level: number): string | null => {
   if (level === 0) return null
   for (let i = index - 1; i >= 0; i--) {
@@ -146,6 +162,15 @@ const persistTodoCreate = (workspaceId: string, date: string, page: JournalPage,
 const persistTodoDelete = (todoId: string) => {
   deleteTodoRepo(todoId).catch((error) => {
     console.error(`[persist] Failed to delete todo ${todoId}:`, error)
+  })
+}
+
+const persistTodoMove = (workspaceId: string, toDate: string, todo: TodoItem) => {
+  ;(async () => {
+    await deleteTodoRepo(todo.id)
+    await createTodoRepo(workspaceId, toDate, todo)
+  })().catch((error) => {
+    console.error(`[persist] Failed to move todo ${todo.id}:`, error)
   })
 }
 
@@ -524,34 +549,83 @@ export const useJournalStore = create<JournalStore>()(
         const sortedTodos = [...page.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
         const todoIndex = sortedTodos.findIndex((t) => t.id === todoId)
         const prevTodo = todoIndex > 0 ? sortedTodos[todoIndex - 1] : null
+        if (todoIndex < 0) return
+
+        const activeTodo = sortedTodos[todoIndex]
+        let endIndex = todoIndex + 1
+        while (endIndex < sortedTodos.length && sortedTodos[endIndex].level > activeTodo.level) {
+          endIndex += 1
+        }
+        const block = sortedTodos.slice(todoIndex, endIndex)
+        const maxDescendantDelta = block.reduce(
+          (max, t) => Math.max(max, t.level - activeTodo.level),
+          0
+        )
 
         let newLevel: number
         if (direction === "indent") {
           if (!prevTodo) return
-          newLevel = Math.min(MAX_TODO_DEPTH, prevTodo.level + 1)
+          const desired = activeTodo.level + 1
+          const maxFromPrev = prevTodo.level + 1
+          const maxDepthAllowed = MAX_TODO_DEPTH - maxDescendantDelta
+          newLevel = Math.min(desired, maxFromPrev, maxDepthAllowed)
         } else {
-          newLevel = Math.max(0, todo.level - 1)
+          newLevel = Math.max(0, activeTodo.level - 1)
         }
 
-        if (newLevel === todo.level) return
+        // Ensure parent chain exists at this position
+        while (newLevel > 0) {
+          const parentIndex = sortedTodos
+            .slice(0, todoIndex)
+            .map((t) => t.level)
+            .lastIndexOf(newLevel - 1)
+          if (parentIndex !== -1) break
+          newLevel -= 1
+        }
 
-        const parentId = getParentIdForIndex(sortedTodos, todoIndex, newLevel)
+        if (newLevel === activeTodo.level) return
+
+        const delta = newLevel - activeTodo.level
+        const updatedSorted = [...sortedTodos]
+        const updatedBlock = block.map((t) => ({
+          ...t,
+          level: t.level + delta,
+        }))
+
+        updatedBlock.forEach((t) => {
+          const idx = updatedSorted.findIndex((item) => item.id === t.id)
+          if (idx >= 0) updatedSorted[idx] = t
+        })
+
+        const blockWithParents = updatedBlock.map((t) => {
+          const idx = updatedSorted.findIndex((item) => item.id === t.id)
+          const parentId = getParentIdForIndex(updatedSorted, idx, t.level)
+          return { ...t, parentId }
+        })
 
         set((state) => {
           const ws = state.workspaces[currentWorkspaceId]
           if (!ws) return
           const p = ws.pages[targetDateKey]
           if (!p) return
-          const t = p.todos.find((t) => t.id === todoId)
-          if (!t) return
-          t.level = newLevel
-          t.parentId = parentId
-          t.updatedAt = new Date()
+
+          const updateMap = new Map(blockWithParents.map((t) => [t.id, t]))
+          p.todos = p.todos.map((t) => {
+            const updated = updateMap.get(t.id)
+            if (!updated) return t
+            return {
+              ...t,
+              level: updated.level,
+              parentId: updated.parentId ?? null,
+              updatedAt: new Date(),
+            }
+          })
           p.updatedAt = new Date()
         })
 
-        // Persist only the level change
-        persistTodoUpdate(todoId, { level: newLevel, parentId })
+        for (const updated of blockWithParents) {
+          persistTodoUpdate(updated.id, { level: updated.level, parentId: updated.parentId ?? null })
+        }
       },
 
       toggleTodo: (todoId: string, dateKey?: string) => {
@@ -619,22 +693,44 @@ export const useJournalStore = create<JournalStore>()(
 
         // Sort todos by order
         const sortedTodos = [...page.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+        const parentMap = deriveParentMap(sortedTodos)
         const activeIndex = sortedTodos.findIndex((t) => t.id === todoId)
         if (activeIndex < 0) return
 
-        // Build subtree block
         const activeTodo = sortedTodos[activeIndex]
+        const activeParentId = parentMap.get(activeTodo.id) ?? null
+
+        // Build subtree block
         let endIndex = activeIndex + 1
         while (endIndex < sortedTodos.length && sortedTodos[endIndex].level > activeTodo.level) {
           endIndex += 1
         }
-
         const block = sortedTodos.slice(activeIndex, endIndex)
-        const remaining = sortedTodos.filter((t) => !block.some((b) => b.id === t.id))
+        const blockIds = new Set(block.map((b) => b.id))
+        const remaining = sortedTodos.filter((t) => !blockIds.has(t.id))
 
-        const insertIndex = direction === "up"
-          ? Math.max(0, activeIndex - 1)
-          : Math.min(remaining.length, activeIndex + 1)
+        // Find siblings (same parent + same level) in sorted list
+        const siblings = sortedTodos.filter(
+          (t) => t.level === activeTodo.level && (parentMap.get(t.id) ?? null) === activeParentId
+        )
+        const siblingIndex = siblings.findIndex((t) => t.id === activeTodo.id)
+        if (siblingIndex === -1) return
+
+        const targetSiblingIndex = direction === "up" ? siblingIndex - 1 : siblingIndex + 1
+        if (targetSiblingIndex < 0 || targetSiblingIndex >= siblings.length) return
+
+        const targetSibling = siblings[targetSiblingIndex]
+
+        // Find target sibling block in remaining list
+        const targetIndex = remaining.findIndex((t) => t.id === targetSibling.id)
+        if (targetIndex < 0) return
+
+        let targetEnd = targetIndex + 1
+        while (targetEnd < remaining.length && remaining[targetEnd].level > targetSibling.level) {
+          targetEnd += 1
+        }
+
+        const insertIndex = direction === "up" ? targetIndex : targetEnd
 
         const beforeId = remaining[insertIndex - 1]?.id ?? null
         const afterId = remaining[insertIndex]?.id ?? null
@@ -665,8 +761,18 @@ export const useJournalStore = create<JournalStore>()(
         const blockIds = new Set(block.map((t) => t.id))
         const remaining = sortedTodos.filter((t) => !blockIds.has(t.id))
 
-        const beforeTodo = beforeId ? remaining.find((t) => t.id === beforeId) : undefined
-        const afterTodo = afterId ? remaining.find((t) => t.id === afterId) : undefined
+        let beforeTodo = beforeId ? remaining.find((t) => t.id === beforeId) : undefined
+        let afterTodo = afterId ? remaining.find((t) => t.id === afterId) : undefined
+
+        if (!beforeTodo && afterTodo && afterTodo.level > 0) {
+          const afterIndex = remaining.findIndex((t) => t.id === afterTodo?.id)
+          for (let i = afterIndex - 1; i >= 0; i -= 1) {
+            if (remaining[i].level === 0) {
+              afterTodo = remaining[i]
+              break
+            }
+          }
+        }
 
         const beforeOrder = beforeTodo?.order ?? null
         const afterOrder = afterTodo?.order ?? null
@@ -764,78 +870,128 @@ export const useJournalStore = create<JournalStore>()(
         if (!workspace) return 0
 
         const todayKey = getTodayKey()
+        const yesterdayDate = new Date(todayKey)
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+        const yesterdayKey = formatDateKey(yesterdayDate)
         const todayPage = workspace.pages[todayKey] || getOrCreatePage(todayKey)
+        const yesterdayPage = workspace.pages[yesterdayKey]
+
+        if (!yesterdayPage) return 0
 
         // Get existing order values in today's page
         const sortedTodayTodos = [...todayPage.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
         let lastOrder = sortedTodayTodos[sortedTodayTodos.length - 1]?.order ?? null
 
-        // Find incomplete todos from previous days
-        const incompleteTodos: { todo: TodoItem; fromDate: string }[] = []
-        for (const [dateKey, page] of Object.entries(workspace.pages)) {
-          if (dateKey >= todayKey) continue
-          for (const todo of page.todos) {
-            if (todo.status === "todo" && !isBlankText(todo.text)) {
-              incompleteTodos.push({ todo, fromDate: dateKey })
-            }
+        const sortedYesterdayTodos = [...yesterdayPage.todos].sort((a, b) =>
+          a.order < b.order ? -1 : a.order > b.order ? 1 : 0
+        )
+        const parentMap = deriveParentMap(sortedYesterdayTodos)
+
+        const baseSet = new Set<string>()
+        for (const todo of sortedYesterdayTodos) {
+          if (todo.status === "todo" && !isBlankText(todo.text)) {
+            baseSet.add(todo.id)
           }
         }
 
-        if (incompleteTodos.length === 0) return 0
+        if (baseSet.size === 0) return 0
 
-        // Create new todos for today with new orders
-        const newTodos: TodoItem[] = []
-        for (const { todo } of incompleteTodos) {
-          const newOrder = generateOrderBetween(lastOrder, null)
-          lastOrder = newOrder
-
-          const newTodo: TodoItem = {
-            id: uuidv4(),
-            text: todo.text,
-            status: "todo",
-            tags: [...todo.tags],
-            order: newOrder,
-            level: 0,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+        // Include ancestors to preserve structure
+        for (const id of Array.from(baseSet)) {
+          let parentId = parentMap.get(id) ?? null
+          while (parentId) {
+            baseSet.add(parentId)
+            parentId = parentMap.get(parentId) ?? null
           }
-          newTodos.push(newTodo)
         }
+
+        // Determine root items to move (parent not in set)
+        const roots = sortedYesterdayTodos.filter((todo) => {
+          if (!baseSet.has(todo.id)) return false
+          const parentId = parentMap.get(todo.id) ?? null
+          return !parentId || !baseSet.has(parentId)
+        })
+
+        if (roots.length === 0) return 0
+
+        const movedBlocks: TodoItem[] = []
+        for (const root of roots) {
+          const startIndex = sortedYesterdayTodos.findIndex((t) => t.id === root.id)
+          if (startIndex < 0) continue
+          let endIndex = startIndex + 1
+          while (
+            endIndex < sortedYesterdayTodos.length &&
+            sortedYesterdayTodos[endIndex].level > root.level
+          ) {
+            endIndex += 1
+          }
+          const block = sortedYesterdayTodos.slice(startIndex, endIndex)
+          movedBlocks.push(...block)
+        }
+
+        if (movedBlocks.length === 0) return 0
+
+        // Rebase each root to level 0 while preserving structure
+        const movedAdjusted: TodoItem[] = []
+        let movedIndex = 0
+        for (const root of roots) {
+          const startIndex = movedBlocks.findIndex((t) => t.id === root.id)
+          if (startIndex < 0) continue
+          let endIndex = startIndex + 1
+          while (endIndex < movedBlocks.length && movedBlocks[endIndex].level > root.level) {
+            endIndex += 1
+          }
+          const block = movedBlocks.slice(startIndex, endIndex)
+          const levelDelta = -root.level
+          for (const todo of block) {
+            movedAdjusted.push({
+              ...todo,
+              level: todo.level + levelDelta,
+              updatedAt: new Date(),
+            })
+            movedIndex += 1
+          }
+        }
+
+        const newOrders = generateNKeysBetween(lastOrder, null, movedAdjusted.length)
+        const movedWithOrder = movedAdjusted.map((todo, index) => ({
+          ...todo,
+          order: newOrders[index],
+        }))
+
+        const combined = [...sortedTodayTodos, ...movedWithOrder]
+        const movedWithParent = movedWithOrder.map((todo) => {
+          const idx = combined.findIndex((t) => t.id === todo.id)
+          const parentId = getParentIdForIndex(combined, idx, todo.level)
+          return { ...todo, parentId }
+        })
+
+        const movedIds = new Set(movedBlocks.map((t) => t.id))
 
         set((state) => {
           const ws = state.workspaces[currentWorkspaceId]
           if (!ws) return
 
-          // Add new todos to today
           const today = ws.pages[todayKey]
           if (today) {
-            today.todos.push(...newTodos)
+            today.todos.push(...movedWithParent)
             today.updatedAt = new Date()
           }
 
-          // Mark original todos as done
-          for (const { todo, fromDate } of incompleteTodos) {
-            const page = ws.pages[fromDate]
-            if (page) {
-              const t = page.todos.find((t) => t.id === todo.id)
-              if (t) {
-                t.status = "done"
-                t.updatedAt = new Date()
-              }
-              page.updatedAt = new Date()
-            }
+          const yesterday = ws.pages[yesterdayKey]
+          if (yesterday) {
+            yesterday.todos = yesterday.todos.filter((t) => !movedIds.has(t.id))
+            yesterday.updatedAt = new Date()
           }
         })
 
-        // Persist all changes
-        for (const newTodo of newTodos) {
-          persistTodoCreate(currentWorkspaceId, todayKey, todayPage, newTodo)
-        }
-        for (const { todo } of incompleteTodos) {
-          persistTodoUpdate(todo.id, { status: "done" })
+        ensurePageExists(currentWorkspaceId, todayPage)
+
+        for (const todo of movedWithParent) {
+          persistTodoMove(currentWorkspaceId, todayKey, todo)
         }
 
-        return incompleteTodos.length
+        return movedWithParent.length
       },
     }
   })

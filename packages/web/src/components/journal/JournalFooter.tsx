@@ -1,7 +1,7 @@
 "use client"
 
 import { Moon, Sun, Check, ChevronDown, RotateCcw, CircleHelp } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -101,6 +101,11 @@ export function JournalFooter({
   const [isWorkspaceSwitcherOpen, setIsWorkspaceSwitcherOpen] = useState(false)
   const [workspaceSwitchList, setWorkspaceSwitchList] = useState<string[]>([])
   const [workspaceSwitchIndex, setWorkspaceSwitchIndex] = useState(0)
+  const workspaceSwitchListRef = useRef<string[]>([])
+  const workspaceSwitchIndexRef = useRef(0)
+  const workspaceSwitchOpenRef = useRef(false)
+  const lastWorkspaceIdRef = useRef<string | null>(null)
+  const previousWorkspaceIdRef = useRef<string | null>(null)
 
   const workspaceList = workspaceOrder
     .map((id) => workspaces[id])
@@ -116,6 +121,26 @@ export function JournalFooter({
     const fallback = workspaceOrder.filter((id) => workspaces[id])
     return recent.length > 0 ? recent : fallback
   }, [workspaceRecentOrder, workspaceOrder, workspaces])
+
+  useEffect(() => {
+    const prev = previousWorkspaceIdRef.current
+    if (prev && prev !== currentWorkspaceId) {
+      lastWorkspaceIdRef.current = prev
+    }
+    previousWorkspaceIdRef.current = currentWorkspaceId
+  }, [currentWorkspaceId])
+
+  useEffect(() => {
+    workspaceSwitchListRef.current = workspaceSwitchList
+  }, [workspaceSwitchList])
+
+  useEffect(() => {
+    workspaceSwitchIndexRef.current = workspaceSwitchIndex
+  }, [workspaceSwitchIndex])
+
+  useEffect(() => {
+    workspaceSwitchOpenRef.current = isWorkspaceSwitcherOpen
+  }, [isWorkspaceSwitcherOpen])
 
   // Calculate incomplete todo counts for each workspace
   const incompleteTodoCounts = useMemo(() => {
@@ -270,12 +295,19 @@ export function JournalFooter({
         if (recentWorkspaceList.length === 0) return
 
         if (!isWorkspaceSwitcherOpen) {
-          const initialIndex = recentWorkspaceList.length > 1 ? 1 : 0
+          const lastId = lastWorkspaceIdRef.current
+          const lastIndex = lastId ? recentWorkspaceList.indexOf(lastId) : -1
+          const initialIndex = lastIndex >= 0
+            ? lastIndex
+            : (recentWorkspaceList.length > 1 ? 1 : 0)
+          workspaceSwitchListRef.current = recentWorkspaceList
+          workspaceSwitchIndexRef.current = initialIndex
+          workspaceSwitchOpenRef.current = true
           setWorkspaceSwitchList(recentWorkspaceList)
           setWorkspaceSwitchIndex(initialIndex)
-          setIsWorkspaceSwitcherOpen(true)
-          return
-        }
+            setIsWorkspaceSwitcherOpen(true)
+            return
+          }
 
         setWorkspaceSwitchIndex((prev) =>
           recentWorkspaceList.length > 0
@@ -286,7 +318,7 @@ export function JournalFooter({
       }
 
       // Arrow key navigation when workspace switcher is open
-      if (isWorkspaceSwitcherOpen && workspaceSwitchList.length > 0) {
+        if (isWorkspaceSwitcherOpen && workspaceSwitchList.length > 0) {
         if (key === "arrowdown") {
           event.preventDefault()
           event.stopPropagation()
@@ -380,10 +412,14 @@ export function JournalFooter({
 
   useEffect(() => {
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (!isWorkspaceSwitcherOpen) return
-      if (event.key.toLowerCase() !== "control") return
+      if (!workspaceSwitchOpenRef.current) return
 
-      const selectedId = workspaceSwitchList[workspaceSwitchIndex]
+      const key = event.key.toLowerCase()
+      const isCtrlRelease = key === "control"
+
+      if (!isCtrlRelease) return
+
+      const selectedId = workspaceSwitchListRef.current[workspaceSwitchIndexRef.current]
       if (selectedId) {
         handleWorkspaceChange(selectedId)
       }

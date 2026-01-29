@@ -83,6 +83,7 @@ export function useTodoKeyboard({
         case "ArrowUp":
           e.preventDefault()
           if (e.altKey && e.shiftKey) {
+            if (e.repeat) break
             // Alt+Shift+↑: Move todo position up
             moveTodo(todoId, "up")
           } else {
@@ -98,6 +99,7 @@ export function useTodoKeyboard({
         case "ArrowDown":
           e.preventDefault()
           if (e.altKey && e.shiftKey) {
+            if (e.repeat) break
             // Alt+Shift+↓: Move todo position down
             moveTodo(todoId, "down")
           } else {
