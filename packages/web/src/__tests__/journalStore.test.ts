@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { useJournalStore } from "../lib/stores/journalStore"
+import { useJournalStore, splitTodoParagraphs } from "../lib/stores/journalStore"
 import { getTodayKey, formatDateKey } from "../lib/utils/dateUtils"
 import type { JournalPage, TodoItem, Workspace } from "../lib/types/journal"
 
@@ -261,5 +261,44 @@ describe("journalStore reorder and hierarchy", () => {
     reorderTodos("p1", "p2", null, 0, dateKey)
 
     expect(apiMocks.updateTodo).toHaveBeenCalled()
+  })
+})
+
+describe("journalStore paste handling", () => {
+  it("splitTodoParagraphs handles blank lines and line breaks", () => {
+    expect(splitTodoParagraphs("one\ntwo")).toEqual(["one", "two"])
+    expect(splitTodoParagraphs("one\r\ntwo\r\n")).toEqual(["one", "two"])
+    expect(splitTodoParagraphs("one line\ncontinues\n\nsecond\n\n\nthird")).toEqual([
+      "one line continues",
+      "second",
+      "third",
+    ])
+  })
+
+  it("pasteTodoText splits multi-paragraph paste into new todos", () => {
+    const { workspaceId, dateKey } = setStoreState([
+      makeTodo("t1", "a0", 0, null),
+      makeTodo("c1", "a0V", 1, "t1"),
+      makeTodo("t2", "a1", 0, null),
+    ])
+
+    const { updateTodoText, pasteTodoText } = useJournalStore.getState()
+    updateTodoText("t1", "Hello ", dateKey)
+
+    const handled = pasteTodoText("t1", "A\nB\nC", 6, 6, dateKey)
+    expect(handled).toBe(true)
+
+    const todos = useJournalStore.getState().workspaces[workspaceId].pages[dateKey].todos
+    const sorted = sortByOrder(todos)
+
+    expect(sorted).toHaveLength(5)
+    expect(sorted[0].id).toBe("t1")
+    expect(sorted[1].id).toBe("c1")
+    expect(sorted[4].id).toBe("t2")
+    expect(sorted[0].text).toBe("Hello A")
+
+    const inserted = sorted.filter((todo) => todo.text === "B" || todo.text === "C")
+    expect(inserted).toHaveLength(2)
+    expect(inserted.every((todo) => todo.level === 0)).toBe(true)
   })
 })

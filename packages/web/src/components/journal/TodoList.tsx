@@ -71,6 +71,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       currentDateKey,
       getOrCreatePage,
       updateTodoText,
+      pasteTodoText,
       toggleTodo,
       addTodo,
       deleteTodo,
@@ -335,6 +336,13 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       updateTodoText(todoId, text)
     }
 
+    const handlePasteTodo = (
+      todoId: string,
+      text: string,
+      selectionStart: number,
+      selectionEnd: number
+    ) => pasteTodoText(todoId, text, selectionStart, selectionEnd)
+
     const handleToggle = (todoId: string) => {
       toggleTodo(todoId)
     }
@@ -441,6 +449,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
                 onToggle={handleToggle}
                 onToggleCollapse={handleToggleCollapse}
                 onKeyDown={handleKeyDown}
+                onPasteTodo={handlePasteTodo}
                 onFocus={handleFocus}
                 inputRef={setTodoRef}
               />
@@ -461,6 +470,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
                     onTextChange={() => {}}
                     onToggle={() => {}}
                     onKeyDown={() => {}}
+                    onPasteTodo={() => false}
                     onFocus={() => {}}
                     inputRef={() => {}}
                   />

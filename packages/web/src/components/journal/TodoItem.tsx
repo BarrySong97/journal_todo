@@ -5,7 +5,16 @@
  * Adapted from dnd-kit TreeItem
  */
 
-import { forwardRef, useEffect, useRef, type CSSProperties, type KeyboardEvent, type ChangeEvent, type HTMLAttributes } from "react"
+import {
+  forwardRef,
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ChangeEvent,
+  type HTMLAttributes,
+  type ClipboardEvent,
+} from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -29,6 +38,7 @@ export interface TodoItemProps extends Omit<HTMLAttributes<HTMLDivElement>, "id"
   onToggle: (todoId: string) => void
   onToggleCollapse?: (todoId: string) => void
   onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => void
+  onPasteTodo: (todoId: string, text: string, selectionStart: number, selectionEnd: number) => boolean
   onFocus: (todoId: string) => void
   inputRef: (todoId: string, element: HTMLTextAreaElement | null) => void
 }
@@ -53,6 +63,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
       onToggle,
       onToggleCollapse,
       onKeyDown,
+      onPasteTodo,
       onFocus,
       inputRef,
       ...props
@@ -74,6 +85,19 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
 
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
       onKeyDown(e, todo.id)
+    }
+
+    const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      if (disableInteraction) return
+      const pastedText = e.clipboardData?.getData("text") ?? ""
+      if (pastedText.length === 0) return
+
+      const selectionStart = e.currentTarget.selectionStart ?? 0
+      const selectionEnd = e.currentTarget.selectionEnd ?? selectionStart
+      const handled = onPasteTodo(todo.id, pastedText, selectionStart, selectionEnd)
+      if (handled) {
+        e.preventDefault()
+      }
     }
 
     const handleFocus = () => {
@@ -194,6 +218,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
                     value={todo.text}
                     onChange={handleChange}
                     onKeyDown={handleKeyDown}
+                    onPaste={handlePaste}
                     onFocus={handleFocus}
                     rows={1}
                     placeholder="Type your todo here..."

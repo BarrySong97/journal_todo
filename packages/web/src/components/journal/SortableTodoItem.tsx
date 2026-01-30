@@ -28,6 +28,7 @@ interface SortableTodoItemProps {
   onToggle: (todoId: string) => void
   onToggleCollapse?: (todoId: string) => void
   onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => void
+  onPasteTodo: (todoId: string, text: string, selectionStart: number, selectionEnd: number) => boolean
   onFocus: (todoId: string) => void
   inputRef: (todoId: string, element: HTMLTextAreaElement | null) => void
 }
@@ -46,6 +47,7 @@ export function SortableTodoItem({
   onToggle,
   onToggleCollapse,
   onKeyDown,
+  onPasteTodo,
   onFocus,
   inputRef,
 }: SortableTodoItemProps) {
@@ -91,6 +93,7 @@ export function SortableTodoItem({
       onToggle={onToggle}
       onToggleCollapse={onToggleCollapse}
       onKeyDown={onKeyDown}
+      onPasteTodo={onPasteTodo}
       onFocus={onFocus}
       inputRef={inputRef}
     />

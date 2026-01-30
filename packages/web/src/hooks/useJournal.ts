@@ -20,6 +20,7 @@ export function useJournal() {
   // Todo operations
   const addTodo = useJournalStore((state) => state.addTodo)
   const updateTodoText = useJournalStore((state) => state.updateTodoText)
+  const pasteTodoText = useJournalStore((state) => state.pasteTodoText)
   const updateTodoLevel = useJournalStore((state) => state.updateTodoLevel)
   const toggleTodo = useJournalStore((state) => state.toggleTodo)
   const deleteTodo = useJournalStore((state) => state.deleteTodo)
@@ -56,6 +57,7 @@ export function useJournal() {
     // Todo operations
     addTodo,
     updateTodoText,
+    pasteTodoText,
     updateTodoLevel,
     toggleTodo,
     deleteTodo,

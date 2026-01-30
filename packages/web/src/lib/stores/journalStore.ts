@@ -25,6 +25,44 @@ const extractTags = (text: string) => {
   return Array.from(new Set(normalized))
 }
 
+export const splitTodoParagraphs = (text: string): string[] => {
+  if (typeof text !== "string") return []
+
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+  const trimmedNormalized = normalized.replace(/\s+$/g, "")
+  if (trimmedNormalized.length === 0) return []
+
+  const hasParagraphBreak = /\n\s*\n/.test(trimmedNormalized)
+  const lines = trimmedNormalized.split("\n")
+
+  if (lines.length <= 1 && !hasParagraphBreak) {
+    const trimmed = trimmedNormalized.trim()
+    return trimmed.length > 0 ? [trimmed] : []
+  }
+
+  if (hasParagraphBreak) {
+    return trimmedNormalized
+      .split(/\n\s*\n+/)
+      .map((paragraph) =>
+        paragraph
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0)
+          .join(" ")
+          .trim()
+      )
+      .filter((paragraph) => paragraph.length > 0)
+  }
+
+  return lines.map((line) => line.trim()).filter((line) => line.length > 0)
+}
+
+const insertTextAtSelection = (value: string, insert: string, start: number, end: number) => {
+  const safeStart = Math.max(0, Math.min(start, value.length))
+  const safeEnd = Math.max(safeStart, Math.min(end, value.length))
+  return value.slice(0, safeStart) + insert + value.slice(safeEnd)
+}
+
 
 /**
  * Generate a fractional index between two existing indices
@@ -215,6 +253,13 @@ interface JournalStore {
   // Todo CRUD actions
   addTodo: (text?: string, afterTodoId?: string, dateKey?: string, level?: number) => string
   updateTodoText: (todoId: string, text: string, dateKey?: string) => void
+  pasteTodoText: (
+    todoId: string,
+    pastedText: string,
+    selectionStart: number,
+    selectionEnd: number,
+    dateKey?: string
+  ) => boolean
   updateTodoLevel: (todoId: string, direction: "indent" | "outdent", dateKey?: string) => void
   toggleTodo: (todoId: string, dateKey?: string) => boolean
   deleteTodo: (todoId: string, dateKey?: string) => void
@@ -532,6 +577,59 @@ export const useJournalStore = create<JournalStore>()(
 
         // Persist only the changed fields
         persistTodoUpdate(todoId, { text, tags: newTags })
+      },
+
+      pasteTodoText: (
+        todoId: string,
+        pastedText: string,
+        selectionStart: number,
+        selectionEnd: number,
+        dateKey?: string
+      ) => {
+        const { currentWorkspaceId, workspaces, addTodo, updateTodoText } = get()
+        const workspace = workspaces[currentWorkspaceId]
+        if (!workspace) return false
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        const page = workspace.pages[targetDateKey]
+        if (!page) return false
+
+        const todo = page.todos.find((t) => t.id === todoId)
+        if (!todo) return false
+
+        const paragraphs = splitTodoParagraphs(pastedText)
+        if (paragraphs.length <= 1) return false
+
+        const currentText = todo.text ?? ""
+        const mergedText = insertTextAtSelection(
+          currentText,
+          paragraphs[0],
+          selectionStart,
+          selectionEnd
+        )
+        updateTodoText(todoId, mergedText, targetDateKey)
+
+        const sortedTodos = [...page.todos].sort((a, b) =>
+          a.order < b.order ? -1 : a.order > b.order ? 1 : 0
+        )
+        const currentIndex = sortedTodos.findIndex((t) => t.id === todoId)
+        if (currentIndex === -1) return true
+
+        let insertIndex = currentIndex
+        for (let i = currentIndex + 1; i < sortedTodos.length; i += 1) {
+          if (sortedTodos[i].level > todo.level) {
+            insertIndex = i
+          } else {
+            break
+          }
+        }
+
+        let afterTodoId = sortedTodos[insertIndex]?.id ?? todoId
+        for (const paragraph of paragraphs.slice(1)) {
+          afterTodoId = addTodo(paragraph, afterTodoId, targetDateKey, todo.level)
+        }
+
+        return true
       },
 
       updateTodoLevel: (todoId: string, direction: "indent" | "outdent", dateKey?: string) => {
