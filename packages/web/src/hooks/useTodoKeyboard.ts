@@ -15,6 +15,20 @@ interface UseTodoKeyboardProps {
   copySelectedTodos: () => void
 }
 
+export const splitTodoTextForEnter = (
+  text: string,
+  selectionStart: number,
+  selectionEnd: number
+): { before: string; after: string } | null => {
+  const safeStart = Math.max(0, Math.min(selectionStart, text.length))
+  const safeEnd = Math.max(safeStart, Math.min(selectionEnd, text.length))
+  if (safeStart >= text.length) return null
+  return {
+    before: text.slice(0, safeStart),
+    after: text.slice(safeEnd),
+  }
+}
+
 export function useTodoKeyboard({
   todos,
   activeTodoId,
@@ -147,7 +161,6 @@ export function useTodoKeyboard({
           const currentText = input.value
           const selectionStart = input.selectionStart ?? currentText.length
           const selectionEnd = input.selectionEnd ?? selectionStart
-          const shouldSplit = selectionStart > 0 && selectionStart < currentText.length
           const currentTodo = todos[currentIndex]
           let insertIndex = currentIndex
 
@@ -162,13 +175,12 @@ export function useTodoKeyboard({
           const afterTodoId = todos[insertIndex]?.id ?? todoId
           let newTodoText = ""
 
-          if (shouldSplit) {
-            const beforeText = currentText.slice(0, selectionStart)
-            const afterText = currentText.slice(selectionEnd)
-            if (beforeText !== currentText) {
-              updateTodoText(todoId, beforeText)
+          const splitResult = splitTodoTextForEnter(currentText, selectionStart, selectionEnd)
+          if (splitResult) {
+            if (splitResult.before !== currentText) {
+              updateTodoText(todoId, splitResult.before)
             }
-            newTodoText = afterText
+            newTodoText = splitResult.after
           }
 
           const newTodoId = addTodo(newTodoText, afterTodoId, undefined, currentTodo.level)
