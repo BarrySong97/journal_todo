@@ -206,7 +206,27 @@ echo -e "$RELEASE_NOTES"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# Step 10: Create GitHub Release
+# Step 10: Generate latest.json
+echo -e "${YELLOW}🧾 Generating latest.json...${NC}"
+NSIS_EXE=$(ls "$BUNDLE_DIR"/nsis/*${NEW_VERSION}*.exe 2>/dev/null | head -n 1)
+NSIS_SIG=$(ls "$BUNDLE_DIR"/nsis/*${NEW_VERSION}*.exe.sig 2>/dev/null | head -n 1)
+
+if [[ -z "$NSIS_EXE" || -z "$NSIS_SIG" ]]; then
+  echo -e "${RED}❌ Error: Missing NSIS update bundle or signature for v${NEW_VERSION}${NC}"
+  exit 1
+fi
+
+NSIS_EXE_NAME=$(basename "$NSIS_EXE")
+NSIS_SIG_CONTENT=$(cat "$NSIS_SIG")
+PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+node -e "const fs=require('fs');const version=process.argv[1];const sig=process.argv[2];const exe=process.argv[3];const notes=process.argv[4];const pubDate=process.argv[5];const json={version,notes,pub_date:pubDate,platforms:{'windows-x86_64':{signature:sig,url:`https://github.com/BarrySong97/journal_todo/releases/download/v${NEW_VERSION}/${NSIS_EXE_NAME}`}}};fs.writeFileSync('latest.json',JSON.stringify(json,null,2)+'\n');" "$NEW_VERSION" "$NSIS_SIG_CONTENT" "$NSIS_EXE_NAME" "$(echo -e "$RELEASE_NOTES")" "$PUB_DATE"
+
+ARTIFACTS+=("latest.json")
+echo -e "${GREEN}✅ latest.json created${NC}"
+echo ""
+
+# Step 11: Create GitHub Release
 echo -e "${YELLOW}🎉 Creating GitHub release...${NC}"
 gh release create "v${NEW_VERSION}" \
   --repo "BarrySong97/journal_todo" \
@@ -217,7 +237,7 @@ gh release create "v${NEW_VERSION}" \
 echo -e "${GREEN}✅ GitHub release created${NC}"
 echo ""
 
-# Step 11: Success message
+# Step 12: Success message
 RELEASE_URL="https://github.com/BarrySong97/journal_todo/releases/tag/v${NEW_VERSION}"
 
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
