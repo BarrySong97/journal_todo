@@ -113,10 +113,10 @@ echo ""
 echo -e "${YELLOW}🔍 Verifying build artifacts...${NC}"
 BUNDLE_DIR="./packages/desktop/src-tauri/target/release/bundle"
 ARTIFACT_PATTERNS=(
-  "$BUNDLE_DIR/nsis/*.exe"
-  "$BUNDLE_DIR/nsis/*.exe.sig"
-  "$BUNDLE_DIR/msi/*.msi"
-  "$BUNDLE_DIR/msi/*.msi.sig"
+  "$BUNDLE_DIR/nsis/*${NEW_VERSION}*.exe"
+  "$BUNDLE_DIR/nsis/*${NEW_VERSION}*.exe.sig"
+  "$BUNDLE_DIR/msi/*${NEW_VERSION}*.msi"
+  "$BUNDLE_DIR/msi/*${NEW_VERSION}*.msi.sig"
 )
 
 ARTIFACTS=()
@@ -134,16 +134,15 @@ done
 shopt -u nullglob
 
 if [[ ${#ARTIFACTS[@]} -eq 0 ]]; then
-  echo -e "${RED}❌ Error: No build artifacts found in ${BUNDLE_DIR}${NC}"
+  echo -e "${RED}❌ Error: No build artifacts found for v${NEW_VERSION} in ${BUNDLE_DIR}${NC}"
   exit 1
 fi
 
 if [[ ${#MISSING_PATTERNS[@]} -gt 0 ]]; then
-  echo -e "${YELLOW}⚠️  Missing expected artifact patterns:${NC}"
+  echo -e "${YELLOW}⚠️  Missing expected artifact patterns for v${NEW_VERSION}:${NC}"
   for pattern in "${MISSING_PATTERNS[@]}"; do
     echo -e "${YELLOW}   - $pattern${NC}"
   done
-  echo -e "${YELLOW}   Continuing with found artifacts.${NC}"
 fi
 
 echo -e "${GREEN}✅ Found ${#ARTIFACTS[@]} artifacts${NC}"
