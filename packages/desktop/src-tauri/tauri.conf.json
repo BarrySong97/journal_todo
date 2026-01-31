@@ -26,6 +26,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -37,5 +38,13 @@
     "resources": [
       "migrations/"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFGMzcyQUM0QjQ4NjU0ODYKUldTR1ZJYTB4Q28zcjFnRVdscGhMa0ZMRC9nZ1ZITFcwRS9MWks3bkd5bERlVURMU1lQSVJGR24K",
+      "endpoints": [
+        "https://github.com/BarrySong97/journal_todo/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

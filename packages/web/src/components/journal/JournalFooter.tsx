@@ -1,10 +1,13 @@
 "use client"
 
-import { Moon, Sun, Check, ChevronDown, RotateCcw, CircleHelp } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Moon, Sun, Check, ChevronDown, RotateCcw, CircleHelp, Download } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { isTauri } from "@tauri-apps/api/core"
+import { check, type Update } from "@tauri-apps/plugin-updater"
+import { relaunch } from "@tauri-apps/plugin-process"
 import { useJournal } from "@/hooks/useJournal"
 import { useTheme } from "@/hooks/useTheme"
 import { cn } from "@/lib/utils"
@@ -72,6 +75,70 @@ const isEditableTarget = (target: EventTarget | null) => {
   if (target.isContentEditable) return true
   const tag = target.tagName
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT"
+}
+
+interface AutoUpdateTrackerProps {
+  fallback: ReactNode
+}
+
+const AutoUpdateTracker = ({ fallback }: AutoUpdateTrackerProps) => {
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null)
+  const [isInstalling, setIsInstalling] = useState(false)
+
+  useEffect(() => {
+    let isActive = true
+
+    const runCheck = async () => {
+      if (!import.meta.env.PROD || !isTauri()) return
+
+      try {
+        const update = await check()
+        if (isActive && update) {
+          setAvailableUpdate(update)
+        }
+      } catch (error) {
+        console.warn("Updater check failed", error)
+      }
+    }
+
+    runCheck()
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const handleInstall = async () => {
+    if (!availableUpdate || isInstalling) return
+
+    setIsInstalling(true)
+    try {
+      await availableUpdate.downloadAndInstall()
+      await relaunch()
+    } catch (error) {
+      console.warn("Updater install failed", error)
+      setIsInstalling(false)
+    }
+  }
+
+  if (!availableUpdate) return <>{fallback}</>
+
+  return (
+    <div className="flex items-center gap-2 rounded-full border border-border bg-background/95 px-2 py-1 shadow-sm">
+      <span className="text-xs font-medium text-muted-foreground">Update available</span>
+      <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-foreground">
+        {availableUpdate.version}
+      </span>
+      <Button
+        size="sm"
+        className="h-7 rounded-full px-3 text-xs"
+        onClick={handleInstall}
+        disabled={isInstalling}
+      >
+        <Download className="h-3.5 w-3.5" />
+        {isInstalling ? "Updating" : "Update"}
+      </Button>
+    </div>
+  )
 }
 
 export function JournalFooter({
@@ -538,110 +605,116 @@ export function JournalFooter({
           </button>
         </div>
 
-        {/* Right: Theme Toggle */}
+        {/* Right: Update Tracker or Theme Toggle */}
         <div className="flex-1 flex justify-end">
-          <Popover>
-            <PopoverTrigger>
-              <button
-                className="p-1.5 rounded-full hover:bg-accent transition-colors"
-                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                title="Shortcuts"
-              >
-                <CircleHelp className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72">
-              <PopoverHeader>
-                <PopoverTitle>Keyboard shortcuts</PopoverTitle>
-              </PopoverHeader>
-              <div className="mt-2 grid gap-2">
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Command palette</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>K</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Switch workspace</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Tab</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Previous day</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Alt</Kbd>
-                    <Kbd>←</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Next day</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Alt</Kbd>
-                    <Kbd>→</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Toggle todo status</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Enter</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Indent todo</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Tab</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Outdent todo</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Shift</Kbd>
-                    <Kbd>Tab</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">New workspace</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Alt</Kbd>
-                    <Kbd>N</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Rename workspace</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Alt</Kbd>
-                    <Kbd>R</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Delete workspace</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Alt</Kbd>
-                    <Kbd>⌫</Kbd>
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-          <button
-            onClick={toggleTheme}
-            className="p-1.5 rounded-full hover:bg-accent transition-colors"
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            title="Toggle theme"
-          >
-            {isDark ? (
-              <Sun className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <Moon className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
+          <AutoUpdateTracker
+            fallback={
+              <>
+                <Popover>
+                  <PopoverTrigger>
+                    <button
+                      className="p-1.5 rounded-full hover:bg-accent transition-colors"
+                      style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                      title="Shortcuts"
+                    >
+                      <CircleHelp className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72">
+                    <PopoverHeader>
+                      <PopoverTitle>Keyboard shortcuts</PopoverTitle>
+                    </PopoverHeader>
+                    <div className="mt-2 grid gap-2">
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Command palette</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Ctrl</Kbd>
+                          <Kbd>K</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Switch workspace</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Ctrl</Kbd>
+                          <Kbd>Tab</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Previous day</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Alt</Kbd>
+                          <Kbd>←</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Next day</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Alt</Kbd>
+                          <Kbd>→</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Toggle todo status</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Ctrl</Kbd>
+                          <Kbd>Enter</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Indent todo</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Tab</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Outdent todo</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Shift</Kbd>
+                          <Kbd>Tab</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">New workspace</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Ctrl</Kbd>
+                          <Kbd>Alt</Kbd>
+                          <Kbd>N</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Rename workspace</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Ctrl</Kbd>
+                          <Kbd>Alt</Kbd>
+                          <Kbd>R</Kbd>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-muted-foreground">Delete workspace</span>
+                        <div className="flex items-center gap-1">
+                          <Kbd>Ctrl</Kbd>
+                          <Kbd>Alt</Kbd>
+                          <Kbd>⌫</Kbd>
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <button
+                  onClick={toggleTheme}
+                  className="p-1.5 rounded-full hover:bg-accent transition-colors"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  title="Toggle theme"
+                >
+                  {isDark ? (
+                    <Sun className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Moon className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+              </>
+            }
+          />
         </div>
       </div>
 
