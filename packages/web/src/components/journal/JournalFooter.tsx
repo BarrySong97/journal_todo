@@ -11,7 +11,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater"
 import { relaunch } from "@tauri-apps/plugin-process"
 import { useJournal } from "@/hooks/useJournal"
 import { useTheme } from "@/hooks/useTheme"
-import { cn } from "@/lib/utils"
+import { cn } from "@journal-todo/ui"
 import { toast } from "sonner"
 import {
   Command,
@@ -22,32 +22,24 @@ import {
   CommandItem,
   CommandList,
   CommandShortcut,
-} from "@/components/ui/command"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Kbd } from "@/components/ui/kbd"
-import {
+  Kbd,
   Popover,
   PopoverContent,
   PopoverHeader,
   PopoverTitle,
   PopoverTrigger,
-} from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
-import {
+  Input,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -56,8 +48,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Button, buttonVariants } from "@/components/ui/button"
+  Button,
+  buttonVariants,
+} from "@journal-todo/ui"
 import type { Workspace } from "@/lib/types/journal"
 
 interface JournalFooterProps {

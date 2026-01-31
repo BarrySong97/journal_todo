@@ -41,7 +41,7 @@ import {
 import { useJournal } from "@/hooks/useJournal"
 import { useTodoFocus } from "@/hooks/useTodoFocus"
 import { useTodoKeyboard } from "@/hooks/useTodoKeyboard"
-import { SimpleToast } from "@/components/ui/simple-toast"
+import { SimpleToast } from "@journal-todo/ui"
 
 interface SelectionRect {
   left: number

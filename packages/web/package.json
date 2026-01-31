@@ -9,6 +9,11 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
+  "exports": {
+    "./components/journal": "./src/components/journal/index.ts",
+    "./hooks/useJournal": "./src/hooks/useJournal.ts",
+    "./stores/journalStore": "./src/lib/stores/journalStore.ts"
+  },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
     "@dnd-kit/core": "^6.3.1",
@@ -19,6 +24,7 @@
     "@journal-todo/api": "workspace:*",
     "@journal-todo/db": "workspace:*",
     "@journal-todo/shared": "workspace:*",
+    "@journal-todo/ui": "workspace:*",
     "@tailwindcss/vite": "^4.1.17",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

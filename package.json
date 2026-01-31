@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "turbo dev --filter=@journal-todo/web",
     "dev:desktop": "turbo dev:tauri --filter=@journal-todo/desktop",
+    "dev:website": "pnpm -C packages/website dev",
     "build": "turbo build",
     "build:web": "turbo build --filter=@journal-todo/web",
     "build:desktop": "turbo build --filter=@journal-todo/desktop",
+    "build:website": "turbo build --filter=@journal-todo/website",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "vitest",

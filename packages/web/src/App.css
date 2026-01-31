@@ -1,3 +1,6 @@
+@import "@journal-todo/ui/styles";
+
+
 /* Tauri window drag region */
 *[data-tauri-drag-region] {
   -webkit-app-region: drag;

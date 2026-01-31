@@ -15,9 +15,8 @@ import {
   type HTMLAttributes,
   type ClipboardEvent,
 } from "react"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Checkbox, cn } from "@journal-todo/ui"
 import { ChevronRight } from "lucide-react"
-import { cn } from "@/lib/utils"
 import type { FlattenedTodo } from "./todoTreeUtils"
 import { INDENTATION_WIDTH } from "./todoTreeUtils"
 

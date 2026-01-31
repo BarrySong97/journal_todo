@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react"
 import { JournalEditor } from "./JournalEditor"
 import { JournalFooter } from "./JournalFooter"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  ScrollArea,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -13,8 +13,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { SimpleToast } from "@/components/ui/simple-toast"
+  SimpleToast,
+} from "@journal-todo/ui"
 import { useJournal } from "@/hooks/useJournal"
 
 export function JournalApp() {
