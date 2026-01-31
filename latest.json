@@ -1,0 +1,11 @@
+{
+  "version": "0.1.7",
+  "notes": "## 🐛 Bug Fixes\n\n- update latest.json generation in release script to use a separate update URL variable\n\n## 🔧 Other Changes\n\n- chore: bump version to v0.1.7",
+  "pub_date": "2026-01-31T06:18:52Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zci9tUmlnL2YzZTYwRTE1T1ZGbVd6MU1YNUNtSWFoek9TYXphQXFtVzRONmoyaGdJazVNU1R5M3BJK3p2L0Y4bHdWR0FSYnI5UnJhSkNneTFLVjQ2U2djPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzY5ODQwMzMxCWZpbGU6Sm91cm5hbFRvZG9fMC4xLjdfeDY0LXNldHVwLmV4ZQp2ZG1meFNTWTFPaW9DVHhncEQvWWZRdys2SjRkbkMwU1lPeG9JdFgrazZhRTNOUHI1ZzNUZU5oeFBuTGVENEJZT0tqOC9oNkxRSk1rUFhablJmTDJCZz09Cg==",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.7/JournalTodo_0.1.7_x64-setup.exe"
+    }
+  }
+}
