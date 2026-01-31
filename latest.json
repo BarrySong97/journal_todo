@@ -1,11 +1,11 @@
 {
-  "version": "0.1.8",
-  "notes": "## ✨ Features\n\n- add latest.json file and update JournalFooter for version display\n\n## 🔧 Other Changes\n\n- chore: bump version to v0.1.8",
-  "pub_date": "2026-01-31T06:31:46Z",
+  "version": "0.1.9",
+  "notes": "## ✨ Features\n\n- integrate new toast system and update version display\n\n## 🔧 Other Changes\n\n- chore: bump version to v0.1.9",
+  "pub_date": "2026-01-31T06:57:27Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcndpUzhENnY4Y0RwdkdBOHBwTkVvemNFcmZVR1JqZnJNaDRFb3NyL3hWUVhVaUNhaTM5OWZhRkFRT204eE15bHV6bUk3dkxKaFBPajl3M0xsRTNOK2dJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzY5ODQxMTA1CWZpbGU6Sm91cm5hbFRvZG9fMC4xLjhfeDY0LXNldHVwLmV4ZQo2UEdNQkVBZVZ4L05lTzdjWTRCN0dxcGI4SUJOcEpsZkFxOTlPSUFNTmhHaC9uVHhlbXJLQTh4S21IY1hQNmJ4TlNGNmZkaTdVdGphdC9SUDVMMzBBZz09Cg==",
-      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.8/JournalTodo_0.1.8_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjdDTGJZMnFIMVdzNlpZSG11ZzlQZG9tOERhcjkxRk1qTWh0WkFKU3lqZEFrYUgrWm91aSsvWm9pOUNzc3ZwQlM1ZHlZdTBoRTQ1YW1GbG8zV3NjbXdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzY5ODQyNjQ1CWZpbGU6Sm91cm5hbFRvZG9fMC4xLjlfeDY0LXNldHVwLmV4ZQpmd1JuNXZmRVFLdFltWXA2K1hNMTRGbjhlc09XOEFMVzVFQ3VROVZZOTVqYjZJaVJGY25ZSmpQQy94cFY1OGpIS0FFMFliVzZ4QVlzeXZxSTVYc1dEdz09Cg==",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.9/JournalTodo_0.1.9_x64-setup.exe"
     }
   }
 }
