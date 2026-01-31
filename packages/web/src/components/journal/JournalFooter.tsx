@@ -111,7 +111,9 @@ const AutoUpdateTracker = () => {
 
     setIsInstalling(true)
     try {
-      const toastId = toastIdRef.current ?? toast(`V ${availableUpdate.version} 是新版本`)
+      const toastId = toastIdRef.current ?? toast(`V ${availableUpdate.version} 是新版本`, {
+        duration: Infinity,
+      })
       toastIdRef.current = toastId
 
       let downloaded = 0
@@ -120,6 +122,7 @@ const AutoUpdateTracker = () => {
       toast(`V ${availableUpdate.version} 是新版本`, {
         id: toastId,
         description: "开始下载...",
+        duration: Infinity,
       })
 
       await availableUpdate.downloadAndInstall((event) => {
@@ -128,6 +131,7 @@ const AutoUpdateTracker = () => {
           toast(`V ${availableUpdate.version} 是新版本`, {
             id: toastId,
             description: "开始下载...",
+            duration: Infinity,
           })
         }
 
@@ -143,6 +147,7 @@ const AutoUpdateTracker = () => {
           toast(`V ${availableUpdate.version} 是新版本`, {
             id: toastId,
             description: progressText,
+            duration: Infinity,
           })
         }
 
@@ -150,6 +155,7 @@ const AutoUpdateTracker = () => {
           toast(`V ${availableUpdate.version} 是新版本`, {
             id: toastId,
             description: "下载完成，正在安装...",
+            duration: Infinity,
           })
         }
       })
@@ -157,6 +163,7 @@ const AutoUpdateTracker = () => {
       toast(`V ${availableUpdate.version} 是新版本`, {
         id: toastId,
         description: "安装完成，正在重启...",
+        duration: Infinity,
       })
       await relaunch()
     } catch (error) {
@@ -173,6 +180,7 @@ const AutoUpdateTracker = () => {
         label: "点击更新",
         onClick: handleInstall,
       },
+      duration: Infinity,
     })
 
     toastIdRef.current = id

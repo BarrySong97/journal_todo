@@ -1,11 +1,11 @@
 {
-  "version": "0.1.10",
-  "notes": "## 🔧 Other Changes\n\n- chore: bump version to v0.1.10\n- chore: update latest.json for version 0.1.9",
-  "pub_date": "2026-01-31T07:00:40Z",
+  "version": "0.1.11",
+  "notes": "## 🔧 Other Changes\n\n- chore: bump version to v0.1.11\n- chore: update latest.json for version 0.1.10",
+  "pub_date": "2026-01-31T07:07:35Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjNWNG1aSjNxamlYK3dtc3FpRlcwb2w5bmtGZzJtZkJwWmJUczBCTElDSVk4bUdGZXFWU2ZCVk5LUFBnNnpvSkdpYU93Ty9lRnFZVEd3bm5DMVJYSUFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzY5ODQyODM4CWZpbGU6Sm91cm5hbFRvZG9fMC4xLjEwX3g2NC1zZXR1cC5leGUKbnZKUXlwSzM2QmF0VmVwWUo2UFVnVVNEZGhEc3dxOUZ6cW1KaWpTVEdyMTRlZGZoUDVlV3VKYkZiT3NUVHNDRndMVnlmckVpanNGQUdXdjBSYzhIQ2c9PQo=",
-      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.10/JournalTodo_0.1.10_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjA0NzhoaFRFa3FISlFlMitmYzdoRTJEQzUyc2NnM2dRY3FKeDFpWWkxVUpqcWV0UW5Dem94NEJndHl1L1VTTWdVaWpqUVovN3ZMTVl1K21Lb0Z4MUFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzY5ODQzMjU0CWZpbGU6Sm91cm5hbFRvZG9fMC4xLjExX3g2NC1zZXR1cC5leGUKWjlvb1o4cEM1cVcxd2V1blRuUkp1dmFZZVU4YnlMZ2tPVTNTNUlFTFJtdzVPUlIrYnFhSEVKUkx0U0hZcWI3ZytiT2hQMzVEeEVnYi9QME5qTnlsQnc9PQo=",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.11/JournalTodo_0.1.11_x64-setup.exe"
     }
   }
 }
