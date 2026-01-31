@@ -34,21 +34,43 @@ fi
 echo -e "${GREEN}✅ Working directory is clean${NC}"
 echo ""
 
-# Step 2: Bump version
+# Step 2: Bump version (root)
 echo -e "${YELLOW}📦 Bumping version (${VERSION_TYPE})...${NC}"
 npm version "$VERSION_TYPE" --no-git-tag-version
-echo -e "${GREEN}✅ Version bumped successfully${NC}"
+echo -e "${GREEN}✅ Root version bumped successfully${NC}"
 echo ""
 
-# Step 3: Extract new version
+# Step 3: Extract new version and sync across packages
 NEW_VERSION=$(node -p "require('./package.json').version")
+VERSION_FILES=(
+  "package.json"
+  "packages/api/package.json"
+  "packages/db/package.json"
+  "packages/desktop/package.json"
+  "packages/shared/package.json"
+  "packages/web/package.json"
+  "packages/desktop/src-tauri/tauri.conf.json"
+)
+
+echo -e "${YELLOW}🔁 Syncing version to workspace packages...${NC}"
+for file in "${VERSION_FILES[@]}"; do
+  if [[ ! -f "$file" ]]; then
+    echo -e "${RED}❌ Missing version file: $file${NC}"
+    exit 1
+  fi
+  node -e "const fs=require('fs');const path=process.argv[1];const version=process.argv[2];const data=JSON.parse(fs.readFileSync(path,'utf8'));data.version=version;fs.writeFileSync(path,JSON.stringify(data,null,2)+'\n');" "$file" "$NEW_VERSION"
+done
+echo -e "${GREEN}✅ Version synced to all packages${NC}"
+echo ""
+
+# Step 4: Display new version
 echo -e "${GREEN}📌 New version: ${BLUE}v${NEW_VERSION}${NC}"
 echo ""
 
-# Step 4: Ask user for confirmation
+# Step 5: Ask user for confirmation
 echo -e "${YELLOW}⚠️  You are about to release version ${BLUE}v${NEW_VERSION}${NC}"
 echo -e "${YELLOW}   This will:${NC}"
-echo -e "${YELLOW}   - Commit package.json${NC}"
+echo -e "${YELLOW}   - Commit version files across the monorepo${NC}"
 echo -e "${YELLOW}   - Create git tag v${NEW_VERSION}${NC}"
 echo -e "${YELLOW}   - Push to origin/main${NC}"
 echo -e "${YELLOW}   - Build production artifacts${NC}"
@@ -59,16 +81,16 @@ echo ""
 if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
   echo -e "${RED}❌ Release cancelled by user${NC}"
   # Revert version bump
-  git checkout package.json
+  git checkout -- "${VERSION_FILES[@]}"
   echo -e "${YELLOW}⚠️  Version bump reverted${NC}"
   exit 1
 fi
 
-# Step 5: Git operations
+# Step 6: Git operations
 echo -e "${YELLOW}📝 Committing version bump...${NC}"
-git add package.json
+git add "${VERSION_FILES[@]}"
 git commit -m "chore: bump version to v${NEW_VERSION}"
-echo -e "${GREEN}✅ Committed package.json${NC}"
+echo -e "${GREEN}✅ Committed version files${NC}"
 echo ""
 
 echo -e "${YELLOW}🏷️  Creating git tag...${NC}"
@@ -81,13 +103,13 @@ git push origin main && git push origin "v${NEW_VERSION}"
 echo -e "${GREEN}✅ Pushed commits and tags${NC}"
 echo ""
 
-# Step 6: Build
+# Step 7: Build
 echo -e "${YELLOW}🔨 Building production artifacts...${NC}"
 pnpm -C packages/desktop build
 echo -e "${GREEN}✅ Build completed${NC}"
 echo ""
 
-# Step 7: Verify artifacts
+# Step 8: Verify artifacts
 echo -e "${YELLOW}🔍 Verifying build artifacts...${NC}"
 BUNDLE_DIR="./packages/desktop/src-tauri/target/release/bundle"
 ARTIFACT_PATTERNS=(
@@ -127,7 +149,7 @@ fi
 echo -e "${GREEN}✅ Found ${#ARTIFACTS[@]} artifacts${NC}"
 echo ""
 
-# Step 8: Generate Release Notes
+# Step 9: Generate Release Notes
 echo -e "${YELLOW}📝 Generating release notes...${NC}"
 
 # Get previous tag (the tag before HEAD)
@@ -185,7 +207,7 @@ echo -e "$RELEASE_NOTES"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# Step 9: Create GitHub Release
+# Step 10: Create GitHub Release
 echo -e "${YELLOW}🎉 Creating GitHub release...${NC}"
 gh release create "v${NEW_VERSION}" \
   --repo "BarrySong97/journal_todo" \
@@ -196,7 +218,7 @@ gh release create "v${NEW_VERSION}" \
 echo -e "${GREEN}✅ GitHub release created${NC}"
 echo ""
 
-# Step 10: Success message
+# Step 11: Success message
 RELEASE_URL="https://github.com/BarrySong97/journal_todo/releases/tag/v${NEW_VERSION}"
 
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
