@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { getVersion } from "@tauri-apps/api/app"
 import { isTauri } from "@tauri-apps/api/core"
 import { check, type Update } from "@tauri-apps/plugin-updater"
 import { relaunch } from "@tauri-apps/plugin-process"
@@ -160,6 +161,7 @@ export function JournalFooter({
   } = useJournal()
 
   const { isDark, toggleTheme } = useTheme()
+  const [appVersion, setAppVersion] = useState<string | null>(null)
   const [isCommandOpen, setIsCommandOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isRenameOpen, setIsRenameOpen] = useState(false)
@@ -478,6 +480,28 @@ export function JournalFooter({
   ])
 
   useEffect(() => {
+    let isActive = true
+
+    const loadVersion = async () => {
+      if (!isTauri()) return
+
+      try {
+        const version = await getVersion()
+        if (isActive) {
+          setAppVersion(version)
+        }
+      } catch (error) {
+        console.warn("Failed to load app version", error)
+      }
+    }
+
+    loadVersion()
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  useEffect(() => {
     const handleKeyUp = (event: KeyboardEvent) => {
       if (!workspaceSwitchOpenRef.current) return
 
@@ -622,7 +646,14 @@ export function JournalFooter({
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-72">
                     <PopoverHeader>
-                      <PopoverTitle>Keyboard shortcuts</PopoverTitle>
+                      <PopoverTitle className="flex items-center justify-between">
+                        <span>Keyboard shortcuts</span>
+                        {appVersion && (
+                          <span className="text-xs font-medium text-muted-foreground">
+                            v{appVersion}
+                          </span>
+                        )}
+                      </PopoverTitle>
                     </PopoverHeader>
                     <div className="mt-2 grid gap-2">
                       <div className="flex items-center justify-between gap-2 text-sm">
