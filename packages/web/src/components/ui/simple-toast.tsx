@@ -2,13 +2,13 @@
 
 import { cn } from "@/lib/utils"
 
-interface ToastProps {
+interface SimpleToastProps {
   open: boolean
   message: string
   className?: string
 }
 
-export function Toast({ open, message, className }: ToastProps) {
+export function SimpleToast({ open, message, className }: SimpleToastProps) {
   if (!open) return null
 
   return (

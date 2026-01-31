@@ -41,7 +41,7 @@ import {
 import { useJournal } from "@/hooks/useJournal"
 import { useTodoFocus } from "@/hooks/useTodoFocus"
 import { useTodoKeyboard } from "@/hooks/useTodoKeyboard"
-import { Toast } from "@/components/ui/toast"
+import { SimpleToast } from "@/components/ui/simple-toast"
 
 interface SelectionRect {
   left: number
@@ -478,7 +478,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
               </DragOverlay>,
               document.body
             )}
-            <Toast open={toastOpen} message={toastMessage} />
+      <SimpleToast open={toastOpen} message={toastMessage} />
           </div>
         </SortableContext>
       </DndContext>

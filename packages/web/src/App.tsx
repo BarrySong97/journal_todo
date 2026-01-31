@@ -3,6 +3,7 @@ import { isTauri } from "@journal-todo/shared"
 import { invoke } from "@tauri-apps/api/core"
 import { Titlebar } from "@/components/Titlebar"
 import { JournalApp } from "@/components/journal/JournalApp"
+import { Toaster } from "@/components/ui/sonner"
 import { DateNavigation } from "./components/journal/DateNavigation"
 import { useJournal } from "@/hooks/useJournal"
 
@@ -44,6 +45,7 @@ export function App() {
 
       <JournalApp />
       {/* {import.meta.env.DEV && <Agentation />} */}
+      <Toaster />
 
     </div>
   )

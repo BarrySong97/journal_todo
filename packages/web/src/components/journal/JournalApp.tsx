@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Toast } from "@/components/ui/toast"
+import { SimpleToast } from "@/components/ui/simple-toast"
 import { useJournal } from "@/hooks/useJournal"
 
 export function JournalApp() {
@@ -78,7 +78,7 @@ export function JournalApp() {
         onOpenRollover={() => setIsRolloverOpen(true)}
       />
 
-      <Toast open={toastOpen} message={toastMessage} />
+      <SimpleToast open={toastOpen} message={toastMessage} />
     </div>
   )
 }

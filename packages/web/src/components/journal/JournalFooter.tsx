@@ -1,7 +1,7 @@
 "use client"
 
-import { Moon, Sun, Check, ChevronDown, RotateCcw, CircleHelp, Download } from "lucide-react"
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { Moon, Sun, Check, ChevronDown, RotateCcw, CircleHelp } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -12,6 +12,7 @@ import { relaunch } from "@tauri-apps/plugin-process"
 import { useJournal } from "@/hooks/useJournal"
 import { useTheme } from "@/hooks/useTheme"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   Command,
   CommandDialog,
@@ -78,13 +79,10 @@ const isEditableTarget = (target: EventTarget | null) => {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT"
 }
 
-interface AutoUpdateTrackerProps {
-  fallback: ReactNode
-}
-
-const AutoUpdateTracker = ({ fallback }: AutoUpdateTrackerProps) => {
+const AutoUpdateTracker = () => {
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null)
   const [isInstalling, setIsInstalling] = useState(false)
+  const toastIdRef = useRef<string | number | null>(null)
 
   useEffect(() => {
     let isActive = true
@@ -113,7 +111,53 @@ const AutoUpdateTracker = ({ fallback }: AutoUpdateTrackerProps) => {
 
     setIsInstalling(true)
     try {
-      await availableUpdate.downloadAndInstall()
+      const toastId = toastIdRef.current ?? toast(`V ${availableUpdate.version} 是新版本`)
+      toastIdRef.current = toastId
+
+      let downloaded = 0
+      let contentLength = 0
+
+      toast(`V ${availableUpdate.version} 是新版本`, {
+        id: toastId,
+        description: "开始下载...",
+      })
+
+      await availableUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          contentLength = event.data.contentLength ?? 0
+          toast(`V ${availableUpdate.version} 是新版本`, {
+            id: toastId,
+            description: "开始下载...",
+          })
+        }
+
+        if (event.event === "Progress") {
+          downloaded += event.data.chunkLength
+          const percent = contentLength
+            ? Math.min(100, Math.round((downloaded / contentLength) * 100))
+            : null
+          const progressText = percent !== null
+            ? `正在下载 ${percent}%`
+            : "正在下载..."
+
+          toast(`V ${availableUpdate.version} 是新版本`, {
+            id: toastId,
+            description: progressText,
+          })
+        }
+
+        if (event.event === "Finished") {
+          toast(`V ${availableUpdate.version} 是新版本`, {
+            id: toastId,
+            description: "下载完成，正在安装...",
+          })
+        }
+      })
+
+      toast(`V ${availableUpdate.version} 是新版本`, {
+        id: toastId,
+        description: "安装完成，正在重启...",
+      })
       await relaunch()
     } catch (error) {
       console.warn("Updater install failed", error)
@@ -121,24 +165,20 @@ const AutoUpdateTracker = ({ fallback }: AutoUpdateTrackerProps) => {
     }
   }
 
-  if (!availableUpdate) return <>{fallback}</>
+  useEffect(() => {
+    if (!availableUpdate || toastIdRef.current) return
 
-  return (
-    <div className="flex items-center rounded-full   ">
-      <span className="text-xs font-medium text-muted-foreground">
-      
-      </span>
-      <Button
-        size="sm"
-        className="h-7  px-3 text-xs cursor-pointer"
-        onClick={handleInstall}
-        disabled={isInstalling}
-      >
-        V{availableUpdate?.version} {" "}
-        {isInstalling ? "正在更新" : "点击更新"}
-      </Button>
-    </div>
-  )
+    const id = toast(`V ${availableUpdate.version} 是新版本`, {
+      action: {
+        label: "点击更新",
+        onClick: handleInstall,
+      },
+    })
+
+    toastIdRef.current = id
+  }, [availableUpdate, handleInstall, isInstalling, toast])
+
+  return null
 }
 
 export function JournalFooter({
@@ -525,6 +565,7 @@ export function JournalFooter({
 
   return (
     <>
+      <AutoUpdateTracker />
       {isWorkspaceSwitcherOpen && workspaceSwitchList.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
           <div className="min-w-72 rounded-xl border border-border bg-background/95 p-3 shadow-lg">
@@ -628,123 +669,117 @@ export function JournalFooter({
           </button>
         </div>
 
-        {/* Right: Update Tracker or Theme Toggle */}
+        {/* Right: Theme Toggle */}
         <div className="flex-1 flex justify-end">
-          <AutoUpdateTracker
-            fallback={
-              <>
-                <Popover>
-                  <PopoverTrigger>
-                    <button
-                      className="p-1.5 rounded-full hover:bg-accent transition-colors"
-                      style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                      title="Shortcuts"
-                    >
-                      <CircleHelp className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-72">
-                    <PopoverHeader>
-                      <PopoverTitle className="flex items-center justify-between">
-                        <span>Keyboard shortcuts</span>
-                        {appVersion && (
-                          <span className="text-xs font-medium text-muted-foreground">
-                            v{appVersion}
-                          </span>
-                        )}
-                      </PopoverTitle>
-                    </PopoverHeader>
-                    <div className="mt-2 grid gap-2">
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Command palette</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Ctrl</Kbd>
-                          <Kbd>K</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Switch workspace</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Ctrl</Kbd>
-                          <Kbd>Tab</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Previous day</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Alt</Kbd>
-                          <Kbd>←</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Next day</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Alt</Kbd>
-                          <Kbd>→</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Toggle todo status</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Ctrl</Kbd>
-                          <Kbd>Enter</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Indent todo</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Tab</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Outdent todo</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Shift</Kbd>
-                          <Kbd>Tab</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">New workspace</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Ctrl</Kbd>
-                          <Kbd>Alt</Kbd>
-                          <Kbd>N</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Rename workspace</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Ctrl</Kbd>
-                          <Kbd>Alt</Kbd>
-                          <Kbd>R</Kbd>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="text-muted-foreground">Delete workspace</span>
-                        <div className="flex items-center gap-1">
-                          <Kbd>Ctrl</Kbd>
-                          <Kbd>Alt</Kbd>
-                          <Kbd>⌫</Kbd>
-                        </div>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                <button
-                  onClick={toggleTheme}
-                  className="p-1.5 rounded-full hover:bg-accent transition-colors"
-                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                  title="Toggle theme"
-                >
-                  {isDark ? (
-                    <Sun className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <Moon className="h-4 w-4 text-muted-foreground" />
+          <Popover>
+            <PopoverTrigger>
+              <button
+                className="p-1.5 rounded-full hover:bg-accent transition-colors"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                title="Shortcuts"
+              >
+                <CircleHelp className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72">
+              <PopoverHeader>
+                <PopoverTitle className="flex items-center justify-between">
+                  <span>Keyboard shortcuts</span>
+                  {appVersion && (
+                    <span className="text-xs font-medium text-muted-foreground">
+                      v{appVersion}
+                    </span>
                   )}
-                </button>
-              </>
-            }
-          />
+                </PopoverTitle>
+              </PopoverHeader>
+              <div className="mt-2 grid gap-2">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Command palette</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>K</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Switch workspace</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Tab</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Previous day</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Alt</Kbd>
+                    <Kbd>←</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Next day</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Alt</Kbd>
+                    <Kbd>→</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Toggle todo status</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Enter</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Indent todo</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Tab</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Outdent todo</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Shift</Kbd>
+                    <Kbd>Tab</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">New workspace</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Alt</Kbd>
+                    <Kbd>N</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Rename workspace</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Alt</Kbd>
+                    <Kbd>R</Kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Delete workspace</span>
+                  <div className="flex items-center gap-1">
+                    <Kbd>Ctrl</Kbd>
+                    <Kbd>Alt</Kbd>
+                    <Kbd>⌫</Kbd>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-full hover:bg-accent transition-colors"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            title="Toggle theme"
+          >
+            {isDark ? (
+              <Sun className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Moon className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
         </div>
       </div>
 
