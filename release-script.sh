@@ -219,8 +219,9 @@ fi
 NSIS_EXE_NAME=$(basename "$NSIS_EXE")
 NSIS_SIG_CONTENT=$(cat "$NSIS_SIG")
 PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+UPDATE_URL="https://github.com/BarrySong97/journal_todo/releases/download/v${NEW_VERSION}/${NSIS_EXE_NAME}"
 
-node -e "const fs=require('fs');const version=process.argv[1];const sig=process.argv[2];const exe=process.argv[3];const notes=process.argv[4];const pubDate=process.argv[5];const json={version,notes,pub_date:pubDate,platforms:{'windows-x86_64':{signature:sig,url:`https://github.com/BarrySong97/journal_todo/releases/download/v${NEW_VERSION}/${NSIS_EXE_NAME}`}}};fs.writeFileSync('latest.json',JSON.stringify(json,null,2)+'\n');" "$NEW_VERSION" "$NSIS_SIG_CONTENT" "$NSIS_EXE_NAME" "$(echo -e "$RELEASE_NOTES")" "$PUB_DATE"
+node -e "const fs=require('fs');const version=process.argv[1];const sig=process.argv[2];const url=process.argv[3];const notes=process.argv[4];const pubDate=process.argv[5];const json={version,notes,pub_date:pubDate,platforms:{'windows-x86_64':{signature:sig,url}}};fs.writeFileSync('latest.json',JSON.stringify(json,null,2)+'\n');" "$NEW_VERSION" "$NSIS_SIG_CONTENT" "$UPDATE_URL" "$(echo -e "$RELEASE_NOTES")" "$PUB_DATE"
 
 ARTIFACTS+=("latest.json")
 echo -e "${GREEN}✅ latest.json created${NC}"
