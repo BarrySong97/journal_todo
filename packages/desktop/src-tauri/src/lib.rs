@@ -60,6 +60,31 @@ pub fn run() {
             logger::init(Some(&app_data_dir));
             logger::info("Logger re-initialized in app data directory");
 
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    if let Err(err) = window.set_decorations(false) {
+                        logger::error(&format!("Failed to disable Windows window decorations: {}", err));
+                    }
+                } else {
+                    logger::error("Failed to get main window for Windows titlebar setup");
+                }
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    if let Err(err) = window.set_decorations(true) {
+                        logger::error(&format!("Failed to enable macOS window decorations: {}", err));
+                    }
+                    if let Err(err) = window.set_title_bar_style(tauri::TitleBarStyle::Overlay) {
+                        logger::error(&format!("Failed to set macOS title bar style: {}", err));
+                    }
+                } else {
+                    logger::error("Failed to get main window for macOS titlebar setup");
+                }
+            }
+
             // Determine database path based on build mode
             #[cfg(debug_assertions)]
             let db_path = {
