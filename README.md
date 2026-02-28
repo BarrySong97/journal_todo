@@ -8,28 +8,48 @@ This template should help get you started developing with Tauri, React and Types
 
 ## Release Scripts
 
-This repo uses two release scripts:
+This repo uses one unified release script:
 
-- `release-windows.sh`: full release flow (bump version, tag, push, build Windows, create GitHub release)
-- `release-macos.sh`: upload-only flow (build macOS x86_64 + arm64, update `latest.json`, upload to existing release)
+- `release.sh`
 
 ### Usage
 
-1) Run the Windows script first (creates the release):
-
 ```bash
-./release-windows.sh patch
+./release.sh all patch
 ```
 
-2) Run the macOS script next (adds mac artifacts to the same release):
+### Step Commands
 
 ```bash
-./release-macos.sh patch
+./release.sh prepare patch   # only bump/sync version
+./release.sh commit          # commit version files
+./release.sh tag             # create v<version> tag
+./release.sh push            # push main + tag
+./release.sh build           # build current OS artifacts
+./release.sh upload          # upload with retry strategy
+./release.sh all patch       # run full sequence
 ```
+
+### Retry Upload After Network Issues
+
+If upload was interrupted after tag/release already exists, run:
+
+```bash
+./release.sh upload
+```
+
+The script will:
+- fetch existing assets from the remote release
+- compare remote assets vs local assets
+- show `missing_on_remote`, `already_on_remote`, `remote_only`
+- let you choose:
+  - upload missing files only
+  - re-upload all files with `--clobber`
+  - cancel
 
 ### Notes
 
-- `release-macos.sh` does not bump version or create tags.
+- macOS and Windows use the same release flow model; only artifact sets differ.
 - Windows artifacts include NSIS, MSI, and portable `.exe`.
 - macOS artifacts include `dmg` and `app.tar.gz` + `.sig` for both Intel and Apple Silicon.
-- Both scripts update/upload `latest.json`.
+- Legacy scripts `release-windows.sh`, `release-macos.sh`, `release-script.sh` were removed.
