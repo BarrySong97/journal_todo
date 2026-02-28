@@ -1,4 +1,5 @@
 import path from "path";
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -7,6 +8,10 @@ import tailwindcss from "@tailwindcss/vite";
 const host = process.env.TAURI_DEV_HOST;
 // @ts-expect-error process is a nodejs global
 const isTauri = !!process.env.TAURI_ENV_PLATFORM;
+const packageJson = JSON.parse(
+  readFileSync(path.resolve(__dirname, "package.json"), "utf-8")
+) as { version?: string };
+const appVersion = packageJson.version ?? "0.0.0";
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -42,5 +47,6 @@ export default defineConfig(async () => ({
   // Define environment variables for platform detection
   define: {
     __TAURI_ENV__: isTauri,
+    __APP_VERSION__: JSON.stringify(appVersion),
   },
 }));

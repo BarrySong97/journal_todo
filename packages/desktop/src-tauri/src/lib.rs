@@ -3,7 +3,12 @@ mod logger;
 
 use db::{DatabaseState, Migration, execute_single_sql, execute_batch_sql};
 use std::path::{Path, PathBuf};
+use std::process::Command as ProcessCommand;
 use tauri::Manager;
+
+struct AppPaths {
+    db_path: String,
+}
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -21,6 +26,62 @@ fn open_devtools(webview: tauri::Webview) {
 #[tauri::command]
 fn get_log_path() -> Option<String> {
     logger::get_log_path().map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn get_database_path(paths: tauri::State<'_, AppPaths>) -> String {
+    paths.db_path.clone()
+}
+
+#[tauri::command]
+fn reveal_database_file(paths: tauri::State<'_, AppPaths>) -> Result<(), String> {
+    let db_path = PathBuf::from(paths.db_path.clone());
+    if !db_path.exists() {
+        return Err(format!("Database file does not exist: {}", db_path.display()));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = ProcessCommand::new("open")
+            .arg("-R")
+            .arg(&db_path)
+            .status()
+            .map_err(|e| e.to_string())?;
+
+        if !status.success() {
+            return Err("Failed to reveal database file in Finder".into());
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let select_arg = format!("/select,{}", db_path.display());
+        let status = ProcessCommand::new("explorer")
+            .arg(select_arg)
+            .status()
+            .map_err(|e| e.to_string())?;
+
+        if !status.success() {
+            return Err("Failed to reveal database file in File Explorer".into());
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let parent = db_path
+            .parent()
+            .ok_or_else(|| format!("Failed to resolve parent for {}", db_path.display()))?;
+        let status = ProcessCommand::new("xdg-open")
+            .arg(parent)
+            .status()
+            .map_err(|e| e.to_string())?;
+
+        if !status.success() {
+            return Err("Failed to open database directory".into());
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -230,6 +291,9 @@ pub fn run() {
 
             match result {
                 Ok(db_state) => {
+                    app.manage(AppPaths {
+                        db_path: db_path_str.clone(),
+                    });
                     app.manage(db_state);
                     logger::info("Setup complete - database ready");
                     Ok(())
@@ -244,6 +308,8 @@ pub fn run() {
             greet,
             open_devtools,
             get_log_path,
+            get_database_path,
+            reveal_database_file,
             execute_single_sql,
             execute_batch_sql
         ])

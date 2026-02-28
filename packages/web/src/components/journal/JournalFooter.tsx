@@ -1,18 +1,16 @@
 "use client"
 
-import { Moon, Sun, Check, ChevronDown, RotateCcw, CircleHelp } from "lucide-react"
+import { Moon, Sun, Check, ChevronDown, RotateCcw } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { getVersion } from "@tauri-apps/api/app"
-import { isTauri } from "@tauri-apps/api/core"
+import { invoke, isTauri } from "@tauri-apps/api/core"
 import { check, type Update } from "@tauri-apps/plugin-updater"
 import { relaunch } from "@tauri-apps/plugin-process"
-import { useJournal } from "@/hooks/useJournal"
-import { useTheme } from "@/hooks/useTheme"
-import { cn } from "@journal-todo/ui"
 import { toast } from "sonner"
+import { cn } from "@journal-todo/ui"
 import {
   Command,
   CommandDialog,
@@ -28,11 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Kbd,
-  Popover,
-  PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
   Input,
   Dialog,
   DialogContent,
@@ -51,6 +44,10 @@ import {
   Button,
   buttonVariants,
 } from "@journal-todo/ui"
+import { JournalSettingsPopover } from "@/components/journal/JournalSettingsPopover"
+import { useJournal } from "@/hooks/useJournal"
+import { useTheme } from "@/hooks/useTheme"
+import { APP_AUTHOR, APP_NAME, resolveAppVersion, resolveSqlitePath } from "@/lib/appInfo"
 import type { Workspace } from "@/lib/types/journal"
 
 interface JournalFooterProps {
@@ -202,6 +199,7 @@ export function JournalFooter({
 
   const { isDark, toggleTheme } = useTheme()
   const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [sqlitePath, setSqlitePath] = useState<string | null>(null)
   const [isCommandOpen, setIsCommandOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isRenameOpen, setIsRenameOpen] = useState(false)
@@ -369,6 +367,16 @@ export function JournalFooter({
     if (!open) restoreCommandIfNeeded()
   }
 
+  const handleRevealSqlitePath = async () => {
+    if (!sqlitePath || !isTauri()) return
+
+    try {
+      await invoke("reveal_database_file")
+    } catch (error) {
+      console.warn("Failed to reveal SQLite file", error)
+    }
+  }
+
   useEffect(() => {
     if (isCreateOpen) {
       createForm.reset({ name: "" })
@@ -522,20 +530,19 @@ export function JournalFooter({
   useEffect(() => {
     let isActive = true
 
-    const loadVersion = async () => {
-      if (!isTauri()) return
+    const loadAppInfo = async () => {
+      const [version, dbPath] = await Promise.all([
+        resolveAppVersion(getVersion, isTauri),
+        resolveSqlitePath(() => invoke<string>("get_database_path"), isTauri),
+      ])
 
-      try {
-        const version = await getVersion()
-        if (isActive) {
-          setAppVersion(version)
-        }
-      } catch (error) {
-        console.warn("Failed to load app version", error)
+      if (isActive) {
+        setAppVersion(version)
+        setSqlitePath(dbPath)
       }
     }
 
-    loadVersion()
+    loadAppInfo()
     return () => {
       isActive = false
     }
@@ -672,103 +679,13 @@ export function JournalFooter({
 
         {/* Right: Theme Toggle */}
         <div className="flex-1 flex justify-end">
-          <Popover>
-            <PopoverTrigger>
-              <button
-                className="p-1.5 rounded-full hover:bg-accent transition-colors"
-                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                title="Shortcuts"
-              >
-                <CircleHelp className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72">
-              <PopoverHeader>
-                <PopoverTitle className="flex items-center justify-between">
-                  <span>Keyboard shortcuts</span>
-                  {appVersion && (
-                    <span className="text-xs font-medium text-muted-foreground">
-                      v{appVersion}
-                    </span>
-                  )}
-                </PopoverTitle>
-              </PopoverHeader>
-              <div className="mt-2 grid gap-2">
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Command palette</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>K</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Switch workspace</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Tab</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Previous day</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Alt</Kbd>
-                    <Kbd>←</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Next day</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Alt</Kbd>
-                    <Kbd>→</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Toggle todo status</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Enter</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Indent todo</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Tab</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Outdent todo</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Shift</Kbd>
-                    <Kbd>Tab</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">New workspace</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Alt</Kbd>
-                    <Kbd>N</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Rename workspace</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Alt</Kbd>
-                    <Kbd>R</Kbd>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">Delete workspace</span>
-                  <div className="flex items-center gap-1">
-                    <Kbd>Ctrl</Kbd>
-                    <Kbd>Alt</Kbd>
-                    <Kbd>⌫</Kbd>
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <JournalSettingsPopover
+            appName={APP_NAME}
+            authorName={APP_AUTHOR}
+            version={appVersion}
+            sqlitePath={sqlitePath}
+            onRevealSqlitePath={handleRevealSqlitePath}
+          />
           <button
             onClick={toggleTheme}
             className="p-1.5 rounded-full hover:bg-accent transition-colors"
