@@ -25,7 +25,11 @@
     "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./*"
+        "./*",
+        "../web/src/*"
+      ],
+      "@journal-todo/web/*": [
+        "../web/src/*"
       ]
     },
     "types": [

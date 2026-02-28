@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "exports": {
+    "./AppTSX": "./src/AppTSX.tsx",
     "./components/journal": "./src/components/journal/index.ts",
     "./hooks/useJournal": "./src/hooks/useJournal.ts",
     "./stores/journalStore": "./src/lib/stores/journalStore.ts"

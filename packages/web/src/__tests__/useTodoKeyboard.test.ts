@@ -57,6 +57,7 @@ describe("useTodoKeyboard Enter behavior", () => {
         setActiveTodoId,
         selectedTodoIds: [],
         copySelectedTodos: vi.fn(),
+        parentIds: new Set(),
       })
     )
 
@@ -101,6 +102,7 @@ describe("useTodoKeyboard Enter behavior", () => {
         setActiveTodoId,
         selectedTodoIds: [],
         copySelectedTodos: vi.fn(),
+        parentIds: new Set(),
       })
     )
 
@@ -144,6 +146,7 @@ describe("useTodoKeyboard Enter behavior", () => {
         setActiveTodoId,
         selectedTodoIds: [],
         copySelectedTodos: vi.fn(),
+        parentIds: new Set(),
       })
     )
 
@@ -165,5 +168,95 @@ describe("useTodoKeyboard Enter behavior", () => {
 
     expect(updateTodoText).not.toHaveBeenCalled()
     expect(addTodo).toHaveBeenCalledWith("", "t1", undefined, 0)
+  })
+
+  it("creates first child when Enter at end and todo has children", () => {
+    const updateTodoText = vi.fn()
+    const addTodo = vi.fn().mockReturnValue("new-id")
+    const setActiveTodoId = vi.fn()
+    const focusTodo = vi.fn()
+
+    const todos = [makeTodo("t1", "parent", 0), makeTodo("c1", "child", 1)]
+    const { result } = renderHook(() =>
+      useTodoKeyboard({
+        todos,
+        activeTodoId: "t1",
+        focusTodo,
+        addTodo,
+        updateTodoText,
+        deleteTodo: vi.fn(),
+        moveTodo: vi.fn(),
+        updateTodoLevel: vi.fn(),
+        setActiveTodoId,
+        selectedTodoIds: [],
+        copySelectedTodos: vi.fn(),
+        parentIds: new Set(["t1"]),
+      })
+    )
+
+    const textarea = document.createElement("textarea")
+    textarea.value = "parent"
+    textarea.selectionStart = 6
+    textarea.selectionEnd = 6
+
+    act(() => {
+      result.current.handleKeyDown(
+        {
+          key: "Enter",
+          preventDefault: vi.fn(),
+          target: textarea,
+        } as unknown as ReactKeyboardEvent<HTMLTextAreaElement>,
+        "t1"
+      )
+    })
+
+    expect(updateTodoText).not.toHaveBeenCalled()
+    expect(addTodo).toHaveBeenCalledWith("", "t1", undefined, 1)
+    expect(setActiveTodoId).toHaveBeenCalledWith("new-id")
+  })
+
+  it("splits and creates first child when Enter in middle and todo has children", () => {
+    const updateTodoText = vi.fn()
+    const addTodo = vi.fn().mockReturnValue("new-id")
+    const setActiveTodoId = vi.fn()
+    const focusTodo = vi.fn()
+
+    const todos = [makeTodo("t1", "hello world", 0), makeTodo("c1", "child", 1)]
+    const { result } = renderHook(() =>
+      useTodoKeyboard({
+        todos,
+        activeTodoId: "t1",
+        focusTodo,
+        addTodo,
+        updateTodoText,
+        deleteTodo: vi.fn(),
+        moveTodo: vi.fn(),
+        updateTodoLevel: vi.fn(),
+        setActiveTodoId,
+        selectedTodoIds: [],
+        copySelectedTodos: vi.fn(),
+        parentIds: new Set(["t1"]),
+      })
+    )
+
+    const textarea = document.createElement("textarea")
+    textarea.value = "hello world"
+    textarea.selectionStart = 5
+    textarea.selectionEnd = 5
+
+    act(() => {
+      result.current.handleKeyDown(
+        {
+          key: "Enter",
+          preventDefault: vi.fn(),
+          target: textarea,
+        } as unknown as ReactKeyboardEvent<HTMLTextAreaElement>,
+        "t1"
+      )
+    })
+
+    expect(updateTodoText).toHaveBeenCalledWith("t1", "hello")
+    expect(addTodo).toHaveBeenCalledWith(" world", "t1", undefined, 1)
+    expect(setActiveTodoId).toHaveBeenCalledWith("new-id")
   })
 })

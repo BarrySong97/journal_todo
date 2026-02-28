@@ -302,6 +302,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       setActiveTodoId,
       selectedTodoIds,
       copySelectedTodos,
+      parentIds,
     })
 
     // Focus management

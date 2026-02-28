@@ -13,6 +13,7 @@ interface UseTodoKeyboardProps {
   setActiveTodoId: (todoId: string | null) => void
   selectedTodoIds: string[]
   copySelectedTodos: () => void
+  parentIds: Set<string>
 }
 
 export const splitTodoTextForEnter = (
@@ -41,6 +42,7 @@ export function useTodoKeyboard({
   setActiveTodoId,
   selectedTodoIds,
   copySelectedTodos,
+  parentIds,
 }: UseTodoKeyboardProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => {
@@ -162,17 +164,6 @@ export function useTodoKeyboard({
           const selectionStart = input.selectionStart ?? currentText.length
           const selectionEnd = input.selectionEnd ?? selectionStart
           const currentTodo = todos[currentIndex]
-          let insertIndex = currentIndex
-
-          for (let i = currentIndex + 1; i < todos.length; i += 1) {
-            if (todos[i].level > currentTodo.level) {
-              insertIndex = i
-            } else {
-              break
-            }
-          }
-
-          const afterTodoId = todos[insertIndex]?.id ?? todoId
           let newTodoText = ""
 
           const splitResult = splitTodoTextForEnter(currentText, selectionStart, selectionEnd)
@@ -183,6 +174,26 @@ export function useTodoKeyboard({
             newTodoText = splitResult.after
           }
 
+          if (parentIds.has(currentTodo.id)) {
+            const newTodoId = addTodo(newTodoText, currentTodo.id, undefined, currentTodo.level + 1)
+            setActiveTodoId(newTodoId)
+            setTimeout(
+              () => focusTodo(newTodoId, newTodoText.length > 0 ? "start" : undefined),
+              0
+            )
+            break
+          }
+
+          let insertIndex = currentIndex
+          for (let i = currentIndex + 1; i < todos.length; i += 1) {
+            if (todos[i].level > currentTodo.level) {
+              insertIndex = i
+            } else {
+              break
+            }
+          }
+
+          const afterTodoId = todos[insertIndex]?.id ?? todoId
           const newTodoId = addTodo(newTodoText, afterTodoId, undefined, currentTodo.level)
           setActiveTodoId(newTodoId)
           // Small delay to ensure the new todo is rendered before focusing
@@ -281,6 +292,7 @@ export function useTodoKeyboard({
       setActiveTodoId,
       selectedTodoIds,
       copySelectedTodos,
+      parentIds,
     ]
   )
 

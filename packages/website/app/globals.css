@@ -1,1 +1,14 @@
 @import "@journal-todo/ui/styles";
+
+.website-scroll-area [data-slot="scroll-area-scrollbar"] {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.website-scroll-area.website-scroll-area--active [data-slot="scroll-area-scrollbar"] {
+  opacity: 1;
+}
+
+.website-scroll-area [data-slot="scroll-area-thumb"] {
+  background-color: #d5d5d5;
+}
