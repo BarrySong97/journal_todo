@@ -1,11 +1,19 @@
 {
-  "version": "0.1.11",
+  "version": "0.1.12",
   "notes": "## 🔧 Other Changes\n\n- chore: bump version to v0.1.11\n- chore: update latest.json for version 0.1.10",
-  "pub_date": "2026-01-31T07:07:35Z",
+  "pub_date": "2026-02-28T09:45:37Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjA0NzhoaFRFa3FISlFlMitmYzdoRTJEQzUyc2NnM2dRY3FKeDFpWWkxVUpqcWV0UW5Dem94NEJndHl1L1VTTWdVaWpqUVovN3ZMTVl1K21Lb0Z4MUFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzY5ODQzMjU0CWZpbGU6Sm91cm5hbFRvZG9fMC4xLjExX3g2NC1zZXR1cC5leGUKWjlvb1o4cEM1cVcxd2V1blRuUkp1dmFZZVU4YnlMZ2tPVTNTNUlFTFJtdzVPUlIrYnFhSEVKUkx0U0hZcWI3ZytiT2hQMzVEeEVnYi9QME5qTnlsQnc9PQo=",
       "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.11/JournalTodo_0.1.11_x64-setup.exe"
+    },
+    "darwin-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjUyaEZKT1ViZmJoa3hJRk1Va2pBQzA5VU0rdFBxN01uSGlTdTdoUVRsUW12VFFiMHRtK2xjTWF6eEp1UDJqblB4SWZvYkRLcWQ3aWZSOHk5YmROYkFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcyMjY5Nzk4CWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5nego1MnFUREV6anJURllYekFkc0IrMzZOS1QxN3QyOEthaGtkM0toUVpLRE1ZTGlCVVdtaDhBNW1DMDRtS1lVcWROVjNsMm8xUTJyK3ZNUms2ZTdBU2RBUT09Cg==",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.12/JournalTodo_0.1.12_x64.app.tar.gz"
+    },
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjkxQmdOSDNIY1RBbFZwZU1NUnQ0YkhwL2h2ZUJTa0FzV0dRaG9qMndKcnB5RGphd1FxVGZIcGRSdVJOYjJvclIzckNybng1cmlzcVRQMjVzSXEreXdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcyMjY5OTA1CWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5negppUHJ2T1E2aUhuR0hrR0F1cTFkRUgra0xBNnphWlZoWEwweFc3M1A2OHBJYUhqWjFiVHVLVEtPTkRxcXFWS25PQnNwSnd6c1ZPZEJ0VEhEWVB2dW9EQT09Cg==",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.12/JournalTodo_0.1.12_aarch64.app.tar.gz"
     }
   }
 }

@@ -73,12 +73,14 @@ const AutoUpdateTracker = () => {
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null)
   const [isInstalling, setIsInstalling] = useState(false)
   const toastIdRef = useRef<string | number | null>(null)
+  const isProductionRuntime =
+    typeof process !== "undefined" && process.env?.NODE_ENV === "production"
 
   useEffect(() => {
     let isActive = true
 
     const runCheck = async () => {
-      if (!import.meta.env.PROD || !isTauri()) return
+      if (!isProductionRuntime || !isTauri()) return
 
       try {
         const update = await check()

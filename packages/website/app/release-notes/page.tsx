@@ -30,8 +30,8 @@ function Tag({ type, children }: { type: "new" | "fix"; children: ReactNode }) {
 
 function ChangelogItem({ children }: { children: ReactNode }) {
   return (
-    <li className="relative mb-2 pl-3.5 text-[14px] leading-[1.5] text-[#444] last:mb-0">
-      <span className="absolute top-[8px] left-0 h-1 w-1 rounded-full bg-[var(--text-black)]" />
+    <li className="relative mb-2 pl-3.5 text-[14px] leading-[1.5] text-foreground last:mb-0">
+      <span className="absolute top-[8px] left-0 h-1 w-1 rounded-full bg-foreground" />
       {children}
     </li>
   );
@@ -54,7 +54,7 @@ function ReleaseNoteItem({
 
   return (
     <div
-      className={`border-b border-[rgba(0,0,0,0.05)] py-4 ${isLast ? "border-b-0" : ""}`}
+      className={`border-b border-border py-4 ${isLast ? "border-b-0" : ""}`}
     >
       <button
         type="button"
@@ -63,10 +63,10 @@ function ReleaseNoteItem({
       >
         <span>{version}</span>
         {isLatest ? (
-          <span className="text-[12px] font-normal text-[#888]">{date}</span>
+          <span className="text-[12px] font-normal text-muted-foreground">{date}</span>
         ) : (
           <span
-            className={`text-[12px] text-[#AAA] transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+            className={`text-[12px] text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
           >
             ▼
           </span>
@@ -74,7 +74,7 @@ function ReleaseNoteItem({
       </button>
 
       {!isLatest ? (
-        <div className="mt-[-4px] mb-3 text-[12px] text-[#888]">{date}</div>
+        <div className="mt-[-4px] mb-3 text-[12px] text-muted-foreground">{date}</div>
       ) : null}
 
       {isExpanded && children ? (
@@ -101,13 +101,22 @@ function ReleaseNotesLeftPanel() {
           your daily writing flow.
         </div>
 
-        <Link
-          href="/downloads"
-          className="inline-flex w-fit items-center gap-[10px] rounded-[4px] bg-[var(--text-black)] px-8 py-4 text-[16px] font-medium text-[var(--text-white)]"
-        >
-          <span>←</span>
-          <span>Back to Downloads</span>
-        </Link>
+        <div className="flex flex-row gap-2">
+          <Link
+            href="/"
+            className="inline-flex w-fit items-center gap-2 rounded-[4px] bg-[var(--text-black)] px-5 py-2.5 text-[14px] font-medium text-[var(--text-white)]"
+          >
+            <span>←</span>
+            <span>Back to Home</span>
+          </Link>
+          <Link
+            href="/downloads"
+            className="inline-flex w-fit items-center gap-2 rounded-[4px] bg-[var(--text-black)] px-5 py-2.5 text-[14px] font-medium text-[var(--text-white)]"
+          >
+            <span>←</span>
+            <span>Back to Downloads</span>
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -115,8 +124,8 @@ function ReleaseNotesLeftPanel() {
 
 function ReleaseNotesRightPanel() {
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden bg-[var(--bg-white)]">
-      <div className="bg-[var(--bg-white)] px-[30px] pt-[30px] pb-[10px]">
+    <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden bg-[#FCFEFC] text-foreground">
+      <div className="bg-[#FCFEFC] px-[30px] pt-[30px] pb-[10px]">
         <div className="mb-10 flex justify-between text-[12px] font-medium opacity-80">
           <span>Journal To Do</span>
           <span>History</span>
@@ -126,9 +135,9 @@ function ReleaseNotesRightPanel() {
         </div>
       </div>
 
-      <WebsiteScrollArea className="flex-1" contentClassName="px-[30px] pb-[100px]">
+      <WebsiteScrollArea className="flex-1 min-h-0" contentClassName="px-[30px] pb-[100px]">
         <div className="mb-10">
-          <div className="mb-4 flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-[#888] uppercase">
+          <div className="mb-4 flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-muted-foreground uppercase">
             <span>Latest Release</span>
           </div>
 
@@ -147,7 +156,7 @@ function ReleaseNotesRightPanel() {
         </div>
 
         <div className="mb-10">
-          <div className="mb-4 flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-[#888] uppercase">
+          <div className="mb-4 flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-muted-foreground uppercase">
             <span>Previous Versions</span>
           </div>
 
@@ -175,14 +184,6 @@ function ReleaseNotesRightPanel() {
         </div>
       </WebsiteScrollArea>
 
-      <Link
-        href="/downloads"
-        className="absolute right-[30px] bottom-[30px] z-20 flex h-[70px] w-[70px] items-center justify-center rounded-full bg-[var(--text-black)] shadow-[0_10px_20px_rgba(0,0,0,0.1)]"
-      >
-        <span className="text-[11px] font-semibold tracking-[0.05em] uppercase text-[var(--text-white)]">
-          Close
-        </span>
-      </Link>
     </div>
   );
 }
@@ -192,6 +193,7 @@ export default function ReleaseNotesPage() {
     <DesktopStageLayout
       left={<ReleaseNotesLeftPanel />}
       right={<ReleaseNotesRightPanel />}
+      rightMode="full"
     />
   );
 }

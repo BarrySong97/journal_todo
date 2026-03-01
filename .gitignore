@@ -35,3 +35,4 @@ packages/desktop/src-tauri/target
 # Vercel
 .vercel
 journal_todo.key
+.release-assets/**/* 

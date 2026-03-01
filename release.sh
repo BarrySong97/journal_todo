@@ -25,6 +25,10 @@ REMOTE_ASSET_NAMES=()
 MISSING_ON_REMOTE=()
 ALREADY_ON_REMOTE=()
 REMOTE_ONLY=()
+MAC_X64_APP_STAGED=""
+MAC_X64_SIG_STAGED=""
+MAC_ARM_APP_STAGED=""
+MAC_ARM_SIG_STAGED=""
 
 print_usage() {
   cat <<USAGE
@@ -168,8 +172,7 @@ collect_local_assets() {
       "$bundle_dir/nsis/*${version}*.exe" \
       "$bundle_dir/nsis/*${version}*.exe.sig" \
       "$bundle_dir/msi/*${version}*.msi" \
-      "$bundle_dir/msi/*${version}*.msi.sig" \
-      "$bundle_dir/portable/*${version}*.exe"
+      "$bundle_dir/msi/*${version}*.msi.sig"
     return
   fi
 
@@ -178,11 +181,40 @@ collect_local_assets() {
     local bundle_arm="./packages/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle"
     collect_with_patterns \
       "$bundle_x64/dmg/*${version}*.dmg" \
-      "$bundle_x64/macos/*${version}*.app.tar.gz" \
-      "$bundle_x64/macos/*${version}*.app.tar.gz.sig" \
-      "$bundle_arm/dmg/*${version}*.dmg" \
-      "$bundle_arm/macos/*${version}*.app.tar.gz" \
-      "$bundle_arm/macos/*${version}*.app.tar.gz.sig"
+      "$bundle_arm/dmg/*${version}*.dmg"
+
+    local app_x64 sig_x64 app_arm sig_arm
+    app_x64=$(ls "$bundle_x64"/macos/*.app.tar.gz 2>/dev/null | head -n 1)
+    sig_x64=$(ls "$bundle_x64"/macos/*.app.tar.gz.sig 2>/dev/null | head -n 1)
+    app_arm=$(ls "$bundle_arm"/macos/*.app.tar.gz 2>/dev/null | head -n 1)
+    sig_arm=$(ls "$bundle_arm"/macos/*.app.tar.gz.sig 2>/dev/null | head -n 1)
+
+    if [[ -z "$app_x64" || -z "$sig_x64" || -z "$app_arm" || -z "$sig_arm" ]]; then
+      echo -e "${RED}Missing macOS app.tar.gz/signature artifacts${NC}"
+      exit 1
+    fi
+
+    local stage_dir=".release-assets/v${version}/macos"
+    mkdir -p "$stage_dir"
+
+    local app_base
+    app_base=$(basename "$app_x64")
+    app_base="${app_base%.app.tar.gz}"
+
+    MAC_X64_APP_STAGED="$stage_dir/${app_base}_${version}_x64.app.tar.gz"
+    MAC_X64_SIG_STAGED="$stage_dir/${app_base}_${version}_x64.app.tar.gz.sig"
+    MAC_ARM_APP_STAGED="$stage_dir/${app_base}_${version}_aarch64.app.tar.gz"
+    MAC_ARM_SIG_STAGED="$stage_dir/${app_base}_${version}_aarch64.app.tar.gz.sig"
+
+    cp "$app_x64" "$MAC_X64_APP_STAGED"
+    cp "$sig_x64" "$MAC_X64_SIG_STAGED"
+    cp "$app_arm" "$MAC_ARM_APP_STAGED"
+    cp "$sig_arm" "$MAC_ARM_SIG_STAGED"
+
+    append_unique_asset "$MAC_X64_APP_STAGED"
+    append_unique_asset "$MAC_X64_SIG_STAGED"
+    append_unique_asset "$MAC_ARM_APP_STAGED"
+    append_unique_asset "$MAC_ARM_SIG_STAGED"
     return
   fi
 
@@ -221,24 +253,16 @@ update_latest_json() {
   fi
 
   if [[ "$platform" == "macos" ]]; then
-    local bundle_x64="./packages/desktop/src-tauri/target/x86_64-apple-darwin/release/bundle"
-    local bundle_arm="./packages/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle"
-    local app_x64 sig_x64 app_arm sig_arm
-    app_x64=$(ls "$bundle_x64"/macos/*${version}*.app.tar.gz 2>/dev/null | head -n 1)
-    sig_x64=$(ls "$bundle_x64"/macos/*${version}*.app.tar.gz.sig 2>/dev/null | head -n 1)
-    app_arm=$(ls "$bundle_arm"/macos/*${version}*.app.tar.gz 2>/dev/null | head -n 1)
-    sig_arm=$(ls "$bundle_arm"/macos/*${version}*.app.tar.gz.sig 2>/dev/null | head -n 1)
-
-    if [[ -z "$app_x64" || -z "$sig_x64" || -z "$app_arm" || -z "$sig_arm" ]]; then
-      echo -e "${RED}Missing macOS app.tar.gz/signature for latest.json${NC}"
+    if [[ -z "$MAC_X64_APP_STAGED" || -z "$MAC_X64_SIG_STAGED" || -z "$MAC_ARM_APP_STAGED" || -z "$MAC_ARM_SIG_STAGED" ]]; then
+      echo -e "${RED}Missing staged macOS updater artifacts for latest.json${NC}"
       exit 1
     fi
 
     local app_x64_name app_arm_name sig_x64_content sig_arm_content url_x64 url_arm
-    app_x64_name=$(basename "$app_x64")
-    app_arm_name=$(basename "$app_arm")
-    sig_x64_content=$(cat "$sig_x64")
-    sig_arm_content=$(cat "$sig_arm")
+    app_x64_name=$(basename "$MAC_X64_APP_STAGED")
+    app_arm_name=$(basename "$MAC_ARM_APP_STAGED")
+    sig_x64_content=$(cat "$MAC_X64_SIG_STAGED")
+    sig_arm_content=$(cat "$MAC_ARM_SIG_STAGED")
     url_x64="https://github.com/${GH_REPO}/releases/download/v${version}/${app_x64_name}"
     url_arm="https://github.com/${GH_REPO}/releases/download/v${version}/${app_arm_name}"
 
@@ -253,16 +277,33 @@ update_latest_json() {
 
 get_remote_asset_names() {
   local version="$1"
+  local gh_json
 
   REMOTE_ASSET_NAMES=()
-  if ! gh release view "v${version}" --repo "$GH_REPO" --json assets >/tmp/release_assets.json 2>/tmp/release_assets.err; then
-    rm -f /tmp/release_assets.json /tmp/release_assets.err
+  if ! gh_json=$(gh release view "v${version}" --repo "$GH_REPO" --json assets 2>/dev/null); then
     return 1
   fi
 
-  mapfile -t REMOTE_ASSET_NAMES < <(node -e "const fs=require('fs');const p='/tmp/release_assets.json';const json=JSON.parse(fs.readFileSync(p,'utf8'));for(const a of (json.assets||[])){if(a&&a.name)console.log(a.name)}")
-  rm -f /tmp/release_assets.json /tmp/release_assets.err
+  while IFS= read -r name; do
+    if [[ -n "$name" ]]; then
+      REMOTE_ASSET_NAMES+=("$name")
+    fi
+  done < <(node -e "const json=JSON.parse(process.argv[1]);for(const a of (json.assets||[])){if(a&&a.name)console.log(a.name)}" "$gh_json")
   return 0
+}
+
+sync_latest_json_from_remote() {
+  local version="$1"
+  local cache_dir=".release-assets/cache"
+  mkdir -p "$cache_dir"
+
+  if gh release download "v${version}" \
+    --repo "$GH_REPO" \
+    --pattern "latest.json" \
+    --output "$cache_dir/latest.remote.json" \
+    --clobber >/dev/null 2>&1; then
+    cp "$cache_dir/latest.remote.json" latest.json
+  fi
 }
 
 compute_asset_diff() {
@@ -442,9 +483,6 @@ step_upload() {
   platform=$(detect_platform)
   version=$(get_current_version)
 
-  collect_local_assets "$platform" "$version"
-  update_latest_json "$platform" "$version"
-
   if ! get_remote_asset_names "$version"; then
     create_release_if_missing "$version"
     get_remote_asset_names "$version" || {
@@ -452,6 +490,10 @@ step_upload() {
       exit 1
     }
   fi
+
+  sync_latest_json_from_remote "$version"
+  collect_local_assets "$platform" "$version"
+  update_latest_json "$platform" "$version"
 
   compute_asset_diff
   show_asset_diff

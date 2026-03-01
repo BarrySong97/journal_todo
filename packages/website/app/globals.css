@@ -1,4 +1,5 @@
 @import "@journal-todo/ui/styles";
+@source "../../web/src/**/*.{ts,tsx}";
 
 .website-scroll-area [data-slot="scroll-area-scrollbar"] {
   opacity: 0;

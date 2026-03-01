@@ -25,10 +25,10 @@ export function DesktopStageLayout({ left, right, rightMode = "framed" }: Deskto
   return (
     <div
       style={themeVars}
-      className="m-0 flex h-screen w-screen items-center justify-center overflow-hidden bg-[#E0E0E0] p-0 font-['Helvetica_Neue','Helvetica','Arial',sans-serif] text-[var(--text-black)] antialiased"
+      className="m-0 flex h-screen w-screen items-center justify-center overflow-hidden bg-[#E0E0E0] p-0 font-['Helvetica_Neue','Helvetica','Arial',sans-serif] antialiased"
     >
       <div className="absolute inset-0 grid h-full w-full grid-cols-2">
-        <div className="flex flex-col bg-[var(--bg-white)] p-[60px]">
+        <div className="flex flex-col bg-[var(--bg-white)] p-[60px] text-[var(--text-black)]">
           <Link href="/" className="w-fit text-[14px] leading-[1.4] font-medium">
             Journal todo <span className="text-[#666]">v.1.0.4</span>
           </Link>

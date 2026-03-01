@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { DesktopStageLayout } from "./layouts/DesktopStageLayout"
+import { HomeEmbeddedApp } from "./components/HomeEmbeddedApp"
 
 function HomeLeftPanel() {
   return (
@@ -20,13 +21,20 @@ function HomeLeftPanel() {
           completing.
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-row gap-2">
           <Link
             href="/downloads"
-            className="inline-flex w-fit items-center gap-[10px] rounded-[4px] bg-[var(--text-black)] px-8 py-4 text-[16px] font-medium text-[var(--text-white)]"
+            className="inline-flex w-fit items-center gap-2 rounded-[4px] bg-[var(--text-black)] px-5 py-2.5 text-[14px] font-medium text-[var(--text-white)]"
           >
             <span>↓</span>
             <span>Download for Mac</span>
+          </Link>
+          <Link
+            href="/release-notes"
+            className="inline-flex w-fit items-center gap-2 rounded-[4px] bg-[var(--text-black)] px-5 py-2.5 text-[14px] font-medium text-[var(--text-white)]"
+          >
+            <span>→</span>
+            <span>View Release Notes</span>
           </Link>
         </div>
       </div>
@@ -38,14 +46,7 @@ export default function Home() {
   return (
     <DesktopStageLayout
       left={<HomeLeftPanel />}
-      right={
-        <iframe
-          title="Journal Todo App"
-          src="https://todo.4real.ltd/"
-          className="h-full w-full border-0 bg-white"
-          loading="lazy"
-        />
-      }
+      right={<HomeEmbeddedApp />}
     />
   )
 }

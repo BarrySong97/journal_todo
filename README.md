@@ -50,6 +50,6 @@ The script will:
 ### Notes
 
 - macOS and Windows use the same release flow model; only artifact sets differ.
-- Windows artifacts include NSIS, MSI, and portable `.exe`.
+- Windows upload assets include NSIS and MSI bundles (portable `.exe` is not uploaded).
 - macOS artifacts include `dmg` and `app.tar.gz` + `.sig` for both Intel and Apple Silicon.
 - Legacy scripts `release-windows.sh`, `release-macos.sh`, `release-script.sh` were removed.
