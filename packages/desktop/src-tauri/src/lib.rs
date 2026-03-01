@@ -117,9 +117,25 @@ pub fn run() {
                 }
             };
             
-            // Re-initialize logger in proper location
-            logger::init(Some(&app_data_dir));
-            logger::info("Logger re-initialized in app data directory");
+            #[cfg(debug_assertions)]
+            {
+                // Keep debug logging behavior unchanged.
+                logger::init(Some(&app_data_dir));
+                logger::info("Logger re-initialized in app data directory");
+            }
+
+            #[cfg(not(debug_assertions))]
+            {
+                let logs_dir = app_data_dir.join("Logs");
+                if let Err(e) = std::fs::create_dir_all(&logs_dir) {
+                    logger::error(&format!("Failed to create logs directory: {}", e));
+                }
+                logger::init(Some(&logs_dir));
+                logger::info(&format!(
+                    "Logger re-initialized in logs directory: {}",
+                    logs_dir.display()
+                ));
+            }
 
             #[cfg(target_os = "windows")]
             {
@@ -161,7 +177,47 @@ pub fn run() {
                 if let Err(e) = std::fs::create_dir_all(&app_data_dir) {
                     logger::error(&format!("Failed to create app data directory: {}", e));
                 }
-                app_data_dir.join("journal.db")
+
+                let db_dir = app_data_dir.join("DB");
+                let logs_dir = app_data_dir.join("Logs");
+
+                if let Err(e) = std::fs::create_dir_all(&db_dir) {
+                    logger::error(&format!("Failed to create DB directory: {}", e));
+                }
+                if let Err(e) = std::fs::create_dir_all(&logs_dir) {
+                    logger::error(&format!("Failed to create Logs directory: {}", e));
+                }
+
+                let legacy_db = app_data_dir.join("journal.db");
+                let new_db = db_dir.join("journal.db");
+
+                if legacy_db.exists() {
+                    if new_db.exists() {
+                        logger::info(&format!(
+                            "Legacy database exists but new DB already present, skipping migration. legacy={}, new={}",
+                            legacy_db.display(),
+                            new_db.display()
+                        ));
+                    } else {
+                        logger::info(&format!(
+                            "Migrating legacy database to new DB directory: {} -> {}",
+                            legacy_db.display(),
+                            new_db.display()
+                        ));
+                        if let Err(e) = std::fs::rename(&legacy_db, &new_db) {
+                            logger::error(&format!(
+                                "Failed to migrate legacy database: {} -> {}: {}",
+                                legacy_db.display(),
+                                new_db.display(),
+                                e
+                            ));
+                            return Err(format!("Failed to migrate legacy database: {}", e).into());
+                        }
+                        logger::info("Legacy database migration completed");
+                    }
+                }
+
+                new_db
             };
 
             let db_path_str = match db_path.to_str() {
