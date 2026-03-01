@@ -7,12 +7,23 @@ import { DateNavigation } from "./components/journal/DateNavigation"
 import { JournalApp } from "./components/journal/JournalApp"
 import { useJournal } from "./hooks/useJournal"
 
-export function AppTSX() {
+interface AppTSXProps {
+  onReady?: () => void
+}
+
+export function AppTSX({ onReady }: AppTSXProps) {
   const { goToToday } = useJournal()
 
   useEffect(() => {
     goToToday()
   }, [goToToday])
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      onReady?.()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [onReady])
 
   return (
     <div className="h-full overflow-hidden flex flex-col bg-background">
