@@ -38,7 +38,7 @@ Usage:
   ./release.sh tag
   ./release.sh push
   ./release.sh build
-  ./release.sh upload
+  ./release.sh upload [--latest-json-only]
   ./release.sh all [patch|minor|major]
 USAGE
 }
@@ -401,6 +401,18 @@ upload_with_strategy() {
   esac
 }
 
+upload_latest_json_only() {
+  local platform="$1"
+  local version="$2"
+
+  sync_latest_json_from_remote "$version"
+  collect_local_assets "$platform" "$version"
+  update_latest_json "$platform" "$version"
+
+  gh release upload "v${version}" --repo "$GH_REPO" --clobber latest.json
+  echo -e "${GREEN}latest.json uploaded with --clobber for v${version}${NC}"
+}
+
 step_prepare() {
   local version_type="${1:-patch}"
   validate_version_type "$version_type"
@@ -477,6 +489,7 @@ step_build() {
 }
 
 step_upload() {
+  local mode="${1:-normal}"
   require_tool gh
 
   local platform version
@@ -489,6 +502,11 @@ step_upload() {
       echo -e "${RED}Failed to fetch release assets after creating release${NC}"
       exit 1
     }
+  fi
+
+  if [[ "$mode" == "latest-only" ]]; then
+    upload_latest_json_only "$platform" "$version"
+    return
   fi
 
   sync_latest_json_from_remote "$version"
@@ -548,7 +566,15 @@ main() {
       step_build
       ;;
     upload)
-      step_upload
+      if [[ $# -eq 0 ]]; then
+        step_upload
+      elif [[ $# -eq 1 && "$1" == "--latest-json-only" ]]; then
+        step_upload "latest-only"
+      else
+        echo -e "${RED}Unknown option for upload: $*${NC}"
+        print_usage
+        exit 1
+      fi
       ;;
     all)
       step_all "$@"

@@ -27,6 +27,7 @@ This repo uses one unified release script:
 ./release.sh push            # push main + tag
 ./release.sh build           # build current OS artifacts
 ./release.sh upload          # upload with retry strategy
+./release.sh upload --latest-json-only  # only merge and upload latest.json with --clobber
 ./release.sh all patch       # run full sequence
 ```
 
@@ -36,6 +37,12 @@ If upload was interrupted after tag/release already exists, run:
 
 ```bash
 ./release.sh upload
+```
+
+If you only need to refresh update metadata across platforms:
+
+```bash
+./release.sh upload --latest-json-only
 ```
 
 The script will:
