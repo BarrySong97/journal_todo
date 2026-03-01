@@ -67,3 +67,18 @@ The script will:
 - Windows upload assets include NSIS and MSI bundles (portable `.exe` is not uploaded).
 - macOS artifacts include `dmg` and `app.tar.gz` + `.sig` for both Intel and Apple Silicon.
 - Legacy scripts `release-windows.sh`, `release-macos.sh`, `release-script.sh` were removed.
+
+## Vercel Deployment (Website)
+
+Deploy `packages/website` as the Vercel project root.
+
+- Root Directory: `packages/website`
+- Framework Preset: `Next.js`
+- Install Command: `pnpm install`
+- Build Command: `pnpm build`
+- Output Directory: leave empty
+- Config file location: `packages/website/vercel.json`
+
+Keep `vercel.json` inside `packages/website` (not repo root) to avoid
+accidentally deploying the monorepo root and hitting
+`No Next.js version detected`.
