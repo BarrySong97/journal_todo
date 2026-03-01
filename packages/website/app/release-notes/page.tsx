@@ -1,26 +1,59 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { useState } from "react";
+import releaseNotesDataJson from "../data/release-notes.json";
 import { WebsiteScrollArea } from "../components/WebsiteScrollArea";
 import { DesktopStageLayout } from "../layouts/DesktopStageLayout";
 
-interface ReleaseNotesItemProps {
-  version: string;
-  date: string;
-  isLatest: boolean;
-  isLast?: boolean;
-  children?: ReactNode;
+type ReleaseItemType = "new" | "fix" | "other";
+
+interface ReleaseItem {
+  type: ReleaseItemType;
+  text: string;
 }
 
-function Tag({ type, children }: { type: "new" | "fix"; children: ReactNode }) {
+interface ReleaseEntry {
+  version: string;
+  date: string;
+  items: ReleaseItem[];
+}
+
+interface ReleaseNotesData {
+  generatedAt: string;
+  releases: ReleaseEntry[];
+}
+
+interface ReleaseNotesItemProps {
+  release: ReleaseEntry;
+  isLatest: boolean;
+  isLast?: boolean;
+}
+
+const releaseNotesData = releaseNotesDataJson as ReleaseNotesData;
+
+function formatReleaseDate(date: string) {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) {
+    return date;
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(parsed);
+}
+
+function Tag({ type, children }: { type: ReleaseItemType; children: ReactNode }) {
   return (
     <span
       className={
         type === "new"
           ? "mr-1.5 inline-block rounded-[2px] bg-[var(--bg-green)] px-1.5 py-0.5 align-middle text-[9px] font-bold uppercase text-black"
-          : "mr-1.5 inline-block rounded-[2px] bg-[#EEE] px-1.5 py-0.5 align-middle text-[9px] font-bold uppercase text-[#666]"
+          : type === "fix"
+            ? "mr-1.5 inline-block rounded-[2px] bg-[#EEE] px-1.5 py-0.5 align-middle text-[9px] font-bold uppercase text-[#666]"
+            : "mr-1.5 inline-block rounded-[2px] bg-[#DDE7F3] px-1.5 py-0.5 align-middle text-[9px] font-bold uppercase text-[#30455E]"
       }
     >
       {children}
@@ -38,48 +71,64 @@ function ChangelogItem({ children }: { children: ReactNode }) {
 }
 
 function ReleaseNoteItem({
-  version,
-  date,
+  release,
   isLatest,
   isLast = false,
-  children,
 }: ReleaseNotesItemProps) {
   const [isExpanded, setIsExpanded] = useState(isLatest);
+  const formattedDate = formatReleaseDate(release.date);
 
   const handleToggle = () => {
-    if (!isLatest) {
-      setIsExpanded((prev) => !prev);
+    setIsExpanded((prev) => !prev);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleToggle();
     }
   };
 
   return (
     <div
-      className={`border-b border-border py-4 ${isLast ? "border-b-0" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-expanded={isExpanded}
+      onClick={handleToggle}
+      onKeyDown={handleKeyDown}
+      className={`cursor-pointer border-b border-border py-4 ${isLast ? "border-b-0" : ""}`}
     >
-      <button
-        type="button"
-        onClick={handleToggle}
-        className="flex w-full items-center justify-between text-left text-[18px] font-medium"
+      <div className="flex w-full items-center justify-between text-left text-[18px] font-medium">
+        <span>{release.version}</span>
+        <span
+          className={`text-[12px] text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+        >
+          ▼
+        </span>
+      </div>
+
+      <div className="mt-[-4px] mb-3 text-[12px] text-muted-foreground">{formattedDate}</div>
+
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
       >
-        <span>{version}</span>
-        {isLatest ? (
-          <span className="text-[12px] font-normal text-muted-foreground">{date}</span>
-        ) : (
-          <span
-            className={`text-[12px] text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
-          >
-            ▼
-          </span>
-        )}
-      </button>
-
-      {!isLatest ? (
-        <div className="mt-[-4px] mb-3 text-[12px] text-muted-foreground">{date}</div>
-      ) : null}
-
-      {isExpanded && children ? (
-        <ul className="mt-3 list-none">{children}</ul>
-      ) : null}
+        <div className="overflow-hidden">
+          {release.items.length > 0 ? (
+            <ul className="mt-3 list-none">
+              {release.items.map((item, index) => (
+                <ChangelogItem key={`${release.version}-${index}`}>
+                  <Tag type={item.type}>
+                    {item.type === "new" ? "New" : item.type === "fix" ? "Fix" : "Other"}
+                  </Tag>
+                  {item.text}
+                </ChangelogItem>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-3 text-[14px] text-muted-foreground">No notes.</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -123,6 +172,8 @@ function ReleaseNotesLeftPanel() {
 }
 
 function ReleaseNotesRightPanel() {
+  const [latestRelease, ...previousReleases] = releaseNotesData.releases;
+
   return (
     <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden bg-[#FCFEFC] text-foreground">
       <div className="bg-[#FCFEFC] px-[30px] pt-[30px] pb-[10px]">
@@ -136,52 +187,32 @@ function ReleaseNotesRightPanel() {
       </div>
 
       <WebsiteScrollArea className="flex-1 min-h-0" contentClassName="px-[30px] pb-[100px]">
-        <div className="mb-10">
-          <div className="mb-4 flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-muted-foreground uppercase">
-            <span>Latest Release</span>
+        {latestRelease ? (
+          <div className="mb-10">
+            <div className="mb-4 flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-muted-foreground uppercase">
+              <span>Latest Release</span>
+            </div>
+            <ReleaseNoteItem release={latestRelease} isLatest={true} />
           </div>
+        ) : (
+          <div className="mb-10 text-[14px] text-muted-foreground">No release notes available.</div>
+        )}
 
-          <ReleaseNoteItem version="v.1.0.4" date="Today" isLatest={true}>
-            <ChangelogItem>
-              <Tag type="new">New</Tag> Focus Mode for deep writing sessions
-            </ChangelogItem>
-            <ChangelogItem>
-              <Tag type="fix">Fix</Tag> Performance improvements for large
-              journals
-            </ChangelogItem>
-            <ChangelogItem>
-              <Tag type="fix">Fix</Tag> Resolved sync conflict on macOS Sonoma
-            </ChangelogItem>
-          </ReleaseNoteItem>
-        </div>
-
-        <div className="mb-10">
-          <div className="mb-4 flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-muted-foreground uppercase">
-            <span>Previous Versions</span>
+        {previousReleases.length > 0 ? (
+          <div className="mb-10">
+            <div className="mb-4 flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-muted-foreground uppercase">
+              <span>Previous Versions</span>
+            </div>
+            {previousReleases.map((release, index) => (
+              <ReleaseNoteItem
+                key={release.version}
+                release={release}
+                isLatest={false}
+                isLast={index === previousReleases.length - 1}
+              />
+            ))}
           </div>
-
-          <ReleaseNoteItem
-            version="v.1.0.3"
-            date="Oct 12, 2023"
-            isLatest={false}
-          />
-          <ReleaseNoteItem
-            version="v.1.0.2"
-            date="Sep 28, 2023"
-            isLatest={false}
-          />
-          <ReleaseNoteItem
-            version="v.1.0.1"
-            date="Sep 15, 2023"
-            isLatest={false}
-          />
-          <ReleaseNoteItem
-            version="v.1.0.0"
-            date="Aug 30, 2023"
-            isLatest={false}
-            isLast={true}
-          />
-        </div>
+        ) : null}
       </WebsiteScrollArea>
 
     </div>

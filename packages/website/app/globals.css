@@ -1,6 +1,21 @@
 @import "@journal-todo/ui/styles";
 @source "../../web/src/**/*.{ts,tsx}";
 
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body > main {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 .website-scroll-area [data-slot="scroll-area-scrollbar"] {
   opacity: 0;
   transition: opacity 0.2s ease;

@@ -28,6 +28,7 @@ This repo uses one unified release script:
 ./release.sh build           # build current OS artifacts
 ./release.sh upload          # upload with retry strategy
 ./release.sh upload --latest-json-only  # only merge and upload latest.json with --clobber
+./release.sh notes           # generate website downloads/release-notes JSON from GitHub release + git tags
 ./release.sh all patch       # run full sequence
 ```
 
@@ -43,6 +44,12 @@ If you only need to refresh update metadata across platforms:
 
 ```bash
 ./release.sh upload --latest-json-only
+```
+
+If you only need to refresh website downloads and release notes data:
+
+```bash
+./release.sh notes
 ```
 
 The script will:

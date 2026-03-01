@@ -9,6 +9,9 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 GH_REPO="BarrySong97/journal_todo"
+WEBSITE_DATA_DIR="packages/website/app/data"
+DOWNLOADS_JSON_PATH="${WEBSITE_DATA_DIR}/downloads.json"
+RELEASE_NOTES_JSON_PATH="${WEBSITE_DATA_DIR}/release-notes.json"
 
 VERSION_FILES=(
   "package.json"
@@ -39,6 +42,7 @@ Usage:
   ./release.sh push
   ./release.sh build
   ./release.sh upload [--latest-json-only]
+  ./release.sh notes
   ./release.sh all [patch|minor|major]
 USAGE
 }
@@ -520,6 +524,171 @@ step_upload() {
   echo -e "${GREEN}Upload step completed for v${version}${NC}"
 }
 
+step_notes() {
+  require_tool gh
+
+  local version tag gh_json
+  version=$(get_current_version)
+  tag="v${version}"
+
+  if ! gh_json=$(gh release view "$tag" --repo "$GH_REPO" --json assets 2>/dev/null); then
+    echo -e "${RED}Release ${tag} not found on GitHub.${NC}"
+    echo "Run tag/push/upload first, then retry: ./release.sh notes"
+    exit 1
+  fi
+
+  mkdir -p "$WEBSITE_DATA_DIR"
+
+  GH_ASSETS_JSON="$gh_json" \
+  GH_REPO="$GH_REPO" \
+  RELEASE_VERSION="$version" \
+  OUTPUT_PATH="$DOWNLOADS_JSON_PATH" \
+  node - <<'NODE'
+const fs = require("fs")
+
+const json = JSON.parse(process.env.GH_ASSETS_JSON || "{}")
+const assets = (json.assets || []).map((asset) => asset?.name).filter(Boolean)
+const repo = process.env.GH_REPO
+const version = process.env.RELEASE_VERSION
+const outputPath = process.env.OUTPUT_PATH
+
+const isDmg = (name) => /\.dmg$/i.test(name) && !/\.sig$/i.test(name)
+const isExe = (name) => /\.exe$/i.test(name) && !/\.sig$/i.test(name)
+
+const macArmDmg = assets.find((name) => isDmg(name) && /aarch64/i.test(name))
+const macX64Dmg = assets.find(
+  (name) => isDmg(name) && /(x64|x86_64)/i.test(name) && !/aarch64/i.test(name)
+)
+const windowsInstaller = assets.find(
+  (name) => isExe(name) && !/portable/i.test(name)
+)
+
+const missing = []
+if (!macArmDmg) missing.push("macOS Apple Silicon dmg (*aarch64*.dmg)")
+if (!macX64Dmg) missing.push("macOS Intel dmg (*x64*.dmg)")
+if (!windowsInstaller) {
+  missing.push("Windows installer exe (*.exe, excluding portable and .sig)")
+}
+
+if (missing.length > 0) {
+  console.error("Missing required release assets:")
+  for (const item of missing) {
+    console.error(`  - ${item}`)
+  }
+  process.exit(1)
+}
+
+const buildUrl = (assetName) =>
+  `https://github.com/${repo}/releases/download/v${version}/${assetName}`
+
+const downloads = {
+  version,
+  generatedAt: new Date().toISOString(),
+  groups: [
+    {
+      category: "macOS",
+      items: [
+        {
+          name: "Apple Silicon",
+          assetName: macArmDmg,
+          url: buildUrl(macArmDmg),
+        },
+        {
+          name: "Intel",
+          assetName: macX64Dmg,
+          url: buildUrl(macX64Dmg),
+        },
+      ],
+    },
+    {
+      category: "Windows",
+      items: [
+        {
+          name: "Windows 10/11 (64-bit)",
+          assetName: windowsInstaller,
+          url: buildUrl(windowsInstaller),
+        },
+      ],
+    },
+  ],
+}
+
+fs.writeFileSync(outputPath, `${JSON.stringify(downloads, null, 2)}\n`)
+NODE
+
+  OUTPUT_PATH="$RELEASE_NOTES_JSON_PATH" \
+  node - <<'NODE'
+const { execSync } = require("child_process")
+const fs = require("fs")
+
+const outputPath = process.env.OUTPUT_PATH
+
+const tagOutput = execSync("git tag --list 'v*' --sort=-version:refname", {
+  encoding: "utf8",
+})
+const tags = tagOutput
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter(Boolean)
+
+if (tags.length === 0) {
+  console.error("No git tags matched 'v*'. Cannot generate release-notes.json.")
+  process.exit(1)
+}
+
+const readLines = (cmd) => {
+  const out = execSync(cmd, { encoding: "utf8" }).trim()
+  if (!out) return []
+  return out.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+}
+
+const normalizeText = (subject) =>
+  subject.replace(
+    /^(feat|fix|chore|refactor|docs|test|perf|build|ci|style)(\([^)]+\))?:\s*/i,
+    ""
+  )
+
+const mapType = (subject) => {
+  if (/^feat(\([^)]+\))?:/i.test(subject)) return "new"
+  if (/^fix(\([^)]+\))?:/i.test(subject)) return "fix"
+  return "other"
+}
+
+const releases = tags.map((tag, index) => {
+  const prevTag = tags[index + 1]
+  const date = execSync(`git log -1 --format=%aI ${tag}`, {
+    encoding: "utf8",
+  }).trim()
+
+  const subjects = prevTag
+    ? readLines(`git log --pretty=format:%s ${prevTag}..${tag}`)
+    : readLines(`git log -1 --pretty=format:%s ${tag}`)
+
+  const items = subjects.map((subject) => ({
+    type: mapType(subject),
+    text: normalizeText(subject) || subject,
+  }))
+
+  return {
+    version: tag,
+    date,
+    items,
+  }
+})
+
+const payload = {
+  generatedAt: new Date().toISOString(),
+  releases,
+}
+
+fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`)
+NODE
+
+  echo -e "${GREEN}Generated website data files:${NC}"
+  echo "  - ${DOWNLOADS_JSON_PATH}"
+  echo "  - ${RELEASE_NOTES_JSON_PATH}"
+}
+
 step_all() {
   local version_type="${1:-patch}"
   validate_version_type "$version_type"
@@ -575,6 +744,14 @@ main() {
         print_usage
         exit 1
       fi
+      ;;
+    notes)
+      if [[ $# -ne 0 ]]; then
+        echo -e "${RED}Unknown option for notes: $*${NC}"
+        print_usage
+        exit 1
+      fi
+      step_notes
       ;;
     all)
       step_all "$@"

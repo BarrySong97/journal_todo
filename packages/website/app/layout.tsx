@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Journal Todo - Daily journaling meets task management",
-  description: "A beautiful desktop app that combines daily journaling with task management. Available for macOS, Windows, and Linux.",
+  description: "A beautiful desktop app that combines daily journaling with task management. Available for macOS and Windows.",
 };
 
 export default function RootLayout({

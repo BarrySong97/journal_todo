@@ -1,0 +1,211 @@
+{
+  "generatedAt": "2026-03-01T05:39:06.538Z",
+  "releases": [
+    {
+      "version": "v0.1.13",
+      "date": "2026-03-01T11:27:27+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.13"
+        },
+        {
+          "type": "other",
+          "text": "Separate release DB and logs"
+        },
+        {
+          "type": "other",
+          "text": "Add latest json only upload option"
+        },
+        {
+          "type": "other",
+          "text": "update version to v0.1.12 and enhance release process"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.12",
+      "date": "2026-02-28T17:03:31+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.12"
+        },
+        {
+          "type": "other",
+          "text": "consolidate release scripts into a single unified script"
+        },
+        {
+          "type": "new",
+          "text": "add database path retrieval and reveal functionality"
+        },
+        {
+          "type": "other",
+          "text": "Fix TAURI signing env variable"
+        },
+        {
+          "type": "new",
+          "text": "enhance desktop window management and platform detection"
+        },
+        {
+          "type": "new",
+          "text": "create @journal-todo/ui package and initialize website"
+        },
+        {
+          "type": "other",
+          "text": "update latest.json for version 0.1.11"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.11",
+      "date": "2026-01-31T15:06:38+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.11"
+        },
+        {
+          "type": "other",
+          "text": "update latest.json for version 0.1.10"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.10",
+      "date": "2026-01-31T14:59:43+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.10"
+        },
+        {
+          "type": "other",
+          "text": "update latest.json for version 0.1.9"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.9",
+      "date": "2026-01-31T14:56:28+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.9"
+        },
+        {
+          "type": "new",
+          "text": "integrate new toast system and update version display"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.8",
+      "date": "2026-01-31T14:30:52+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.8"
+        },
+        {
+          "type": "new",
+          "text": "add latest.json file and update JournalFooter for version display"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.7",
+      "date": "2026-01-31T14:17:56+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.7"
+        },
+        {
+          "type": "fix",
+          "text": "update latest.json generation in release script to use a separate update URL variable"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.6",
+      "date": "2026-01-31T14:13:32+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.6"
+        },
+        {
+          "type": "new",
+          "text": "add functionality to generate latest.json in release script"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.5",
+      "date": "2026-01-31T14:00:27+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.5"
+        },
+        {
+          "type": "new",
+          "text": "display app version in JournalFooter"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.4",
+      "date": "2026-01-31T13:53:56+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.4"
+        },
+        {
+          "type": "fix",
+          "text": "update artifact verification in release script to include version-specific patterns"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.3",
+      "date": "2026-01-31T13:49:25+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.3"
+        },
+        {
+          "type": "other",
+          "text": "enhance release script to sync version across all packages"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.2",
+      "date": "2026-01-31T13:44:47+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.2"
+        },
+        {
+          "type": "other",
+          "text": "update Cargo.lock with new dependencies and versions"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.1",
+      "date": "2026-01-31T13:37:55+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.1"
+        }
+      ]
+    }
+  ]
+}

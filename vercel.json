@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm turbo build --filter=@journal-todo/web",
-  "outputDirectory": "packages/web/dist",
+  "buildCommand": "pnpm -C packages/website build",
   "installCommand": "pnpm install",
-  "framework": "vite"
+  "framework": "nextjs"
 }
