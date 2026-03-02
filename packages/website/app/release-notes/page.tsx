@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { KeyboardEvent, ReactNode } from "react";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import releaseNotesDataJson from "../data/release-notes.json";
 import { WebsiteScrollArea } from "../components/WebsiteScrollArea";
 import { DesktopStageLayout } from "../layouts/DesktopStageLayout";
@@ -173,6 +173,10 @@ function ReleaseNotesLeftPanel() {
 
 function ReleaseNotesRightPanel() {
   const [latestRelease, ...previousReleases] = releaseNotesData.releases;
+
+  useLayoutEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
 
   return (
     <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden bg-[#FCFEFC] text-foreground">

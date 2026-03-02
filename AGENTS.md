@@ -5,10 +5,50 @@ Follow existing conventions first; do not invent new tooling or styles.
 
 ## Repository layout
 
-- `packages/web`: Vite + React app (UI)
-- `packages/desktop`: Tauri desktop wrapper
-- `packages/desktop/src-tauri`: Rust backend for Tauri
-- `packages/shared`: Shared TS utilities and types
+- `packages/api`: Data access facade, selects storage adapter and exposes repository APIs
+- `packages/db`: Storage layer (SQLite + localStorage adapters, schema, types)
+- `packages/desktop`: Tauri desktop shell package (frontend host + Rust backend)
+- `packages/shared`: Shared utilities and environment/platform helpers
+- `packages/ui`: Reusable design-system components and UI primitives
+- `packages/web`: Main journal app (Vite + React), used standalone and embedded
+- `packages/website`: Marketing/download site (Next.js), embeds parts of web app
+
+## Package role and primary business
+
+- `@journal-todo/api`: Unified repository API for workspace/page/todo CRUD; decides Tauri SQLite vs browser localStorage adapter at runtime.
+- `@journal-todo/db`: Persistence contract (`StorageAdapter`) and implementations; owns schema-level model and DB-facing behavior.
+- `@journal-todo/desktop`: Desktop runtime integration (window behavior, updater plugins, DB path/reveal commands, SQL execution bridge).
+- `@journal-todo/shared`: Cross-package shared logic (platform/runtime detection and shared types/utils exports).
+- `@journal-todo/ui`: Shared UI component library consumed by web/website.
+- `@journal-todo/web`: Core product experience (journal editor, todo interactions, workspace/date navigation, settings/footer).
+- `@journal-todo/website`: Public website with download/release-notes pages and embedded app preview.
+
+## Package-level AGENTS files
+
+Each package has its own detailed `AGENTS.md`:
+
+- `packages/api/AGENTS.md`
+- `packages/db/AGENTS.md`
+- `packages/desktop/AGENTS.md`
+- `packages/shared/AGENTS.md`
+- `packages/ui/AGENTS.md`
+- `packages/web/AGENTS.md`
+- `packages/website/AGENTS.md`
+
+## How to query package details
+
+When working in or across packages, follow this order:
+
+1. Open the package-level `AGENTS.md` first for purpose, business scope, and folder map.
+2. Confirm package entrypoints in `packages/<name>/package.json` (`main`, `exports`, scripts).
+3. Read the package root entry file (typically `src/index.ts`, `src/main.tsx`, or `src-tauri/src/lib.rs`).
+4. Trace cross-package calls only after package-local behavior is clear.
+
+Quick commands:
+
+- `sed -n '1,220p' packages/<name>/AGENTS.md`
+- `cat packages/<name>/package.json`
+- `find packages/<name>/src -maxdepth 3 -type f | sort`
 
 ## Package manager and workspace
 

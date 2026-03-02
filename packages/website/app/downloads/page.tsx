@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import downloadsDataJson from "../data/downloads.json";
 import { WebsiteScrollArea } from "../components/WebsiteScrollArea";
 import { DesktopStageLayout } from "../layouts/DesktopStageLayout";
@@ -65,6 +65,10 @@ function DownloadsLeftPanel() {
 
 function DownloadsRightPanel() {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
 
   return (
     <div className="relative flex h-full w-full flex-1 flex-col overflow-hidden bg-[#FCFEFC] text-foreground">
