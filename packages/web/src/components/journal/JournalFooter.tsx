@@ -47,7 +47,13 @@ import {
 import { JournalSettingsPopover } from "@/components/journal/JournalSettingsPopover"
 import { useJournal } from "@/hooks/useJournal"
 import { useTheme } from "@/hooks/useTheme"
-import { APP_AUTHOR, APP_NAME, resolveAppVersion, resolveSqlitePath } from "@/lib/appInfo"
+import {
+  APP_AUTHOR,
+  APP_NAME,
+  getFileNameFromPath,
+  resolveAppVersion,
+  resolveSqlitePath,
+} from "@/lib/appInfo"
 import type { Workspace } from "@/lib/types/journal"
 
 interface JournalFooterProps {
@@ -103,7 +109,7 @@ const AutoUpdateTracker = () => {
 
     setIsInstalling(true)
     try {
-      const toastId = toastIdRef.current ?? toast(`V ${availableUpdate.version} 是新版本`, {
+      const toastId = toastIdRef.current ?? toast(`Version ${availableUpdate.version} is available`, {
         duration: Infinity,
       })
       toastIdRef.current = toastId
@@ -111,18 +117,18 @@ const AutoUpdateTracker = () => {
       let downloaded = 0
       let contentLength = 0
 
-      toast(`V ${availableUpdate.version} 是新版本`, {
+      toast(`Version ${availableUpdate.version} is available`, {
         id: toastId,
-        description: "开始下载...",
+        description: "Starting download...",
         duration: Infinity,
       })
 
       await availableUpdate.downloadAndInstall((event) => {
         if (event.event === "Started") {
           contentLength = event.data.contentLength ?? 0
-          toast(`V ${availableUpdate.version} 是新版本`, {
+          toast(`Version ${availableUpdate.version} is available`, {
             id: toastId,
-            description: "开始下载...",
+            description: "Starting download...",
             duration: Infinity,
           })
         }
@@ -133,10 +139,10 @@ const AutoUpdateTracker = () => {
             ? Math.min(100, Math.round((downloaded / contentLength) * 100))
             : null
           const progressText = percent !== null
-            ? `正在下载 ${percent}%`
-            : "正在下载..."
+            ? `Downloading ${percent}%`
+            : "Downloading..."
 
-          toast(`V ${availableUpdate.version} 是新版本`, {
+          toast(`Version ${availableUpdate.version} is available`, {
             id: toastId,
             description: progressText,
             duration: Infinity,
@@ -144,17 +150,17 @@ const AutoUpdateTracker = () => {
         }
 
         if (event.event === "Finished") {
-          toast(`V ${availableUpdate.version} 是新版本`, {
+          toast(`Version ${availableUpdate.version} is available`, {
             id: toastId,
-            description: "下载完成，正在安装...",
+            description: "Download complete, installing...",
             duration: Infinity,
           })
         }
       })
 
-      toast(`V ${availableUpdate.version} 是新版本`, {
+      toast(`Version ${availableUpdate.version} is available`, {
         id: toastId,
-        description: "安装完成，正在重启...",
+        description: "Install complete, restarting...",
         duration: Infinity,
       })
       await relaunch()
@@ -167,9 +173,9 @@ const AutoUpdateTracker = () => {
   useEffect(() => {
     if (!availableUpdate || toastIdRef.current) return
 
-    const id = toast(`V ${availableUpdate.version} 是新版本`, {
+    const id = toast(`Version ${availableUpdate.version} is available`, {
       action: {
-        label: "点击更新",
+        label: "Update now",
         onClick: handleInstall,
       },
       duration: Infinity,
@@ -376,6 +382,22 @@ export function JournalFooter({
       await invoke("reveal_database_file")
     } catch (error) {
       console.warn("Failed to reveal SQLite file", error)
+    }
+  }
+
+  const handleImportSqlitePath = async () => {
+    if (!isTauri()) return
+
+    try {
+      const selectedPath = await invoke<string | null>("select_and_set_database_path")
+      if (!selectedPath) return
+
+      const fileName = getFileNameFromPath(selectedPath) ?? selectedPath
+      toast.success(`Database switched to ${fileName}. Restarting app...`)
+      await relaunch()
+    } catch (error) {
+      console.warn("Failed to import SQLite file", error)
+      toast.error("Failed to import database. Please verify the file and try again.")
     }
   }
 
@@ -687,6 +709,7 @@ export function JournalFooter({
             version={appVersion}
             sqlitePath={sqlitePath}
             onRevealSqlitePath={handleRevealSqlitePath}
+            onImportSqlitePath={handleImportSqlitePath}
           />
           <button
             onClick={toggleTheme}

@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { JournalSettingsPopover } from "@/components/journal/JournalSettingsPopover"
+
+afterEach(() => {
+  cleanup()
+})
 
 describe("JournalSettingsPopover", () => {
   it("renders settings trigger", () => {
@@ -19,6 +23,7 @@ describe("JournalSettingsPopover", () => {
 
   it("shows shortcuts and app info when opened", () => {
     const onRevealSqlitePath = vi.fn()
+    const onImportSqlitePath = vi.fn()
 
     render(
       <JournalSettingsPopover
@@ -27,6 +32,7 @@ describe("JournalSettingsPopover", () => {
         version="0.1.11"
         sqlitePath="/Users/test/.journal-todo/journal.db"
         onRevealSqlitePath={onRevealSqlitePath}
+        onImportSqlitePath={onImportSqlitePath}
       />
     )
 
@@ -45,7 +51,15 @@ describe("JournalSettingsPopover", () => {
     expect(screen.getByText("Switch workspace")).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "journal.db" }))
+    expect(screen.getByText("Open current path")).toBeTruthy()
+    expect(screen.getByText("Import database")).toBeTruthy()
+
+    fireEvent.click(screen.getByText("Open current path"))
     expect(onRevealSqlitePath).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "journal.db" }))
+    fireEvent.click(screen.getByText("Import database"))
+    expect(onImportSqlitePath).toHaveBeenCalledTimes(1)
   })
 
   it("hides version line when version is null", () => {

@@ -2,12 +2,194 @@ mod db;
 mod logger;
 
 use db::{DatabaseState, Migration, execute_single_sql, execute_batch_sql};
+use serde::{Deserialize, Serialize};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
+use tokio::sync::oneshot;
 
 struct AppPaths {
     db_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct DatabaseConfig {
+    custom_db_path: Option<String>,
+}
+
+fn runtime_env_label() -> &'static str {
+    #[cfg(debug_assertions)]
+    {
+        "debug"
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        "release"
+    }
+}
+
+fn database_config_file_name(env_label: &str) -> String {
+    format!("database-config.{}.json", env_label)
+}
+
+fn database_config_path(app_data_dir: &Path) -> PathBuf {
+    app_data_dir
+        .join("DB")
+        .join(database_config_file_name(runtime_env_label()))
+}
+
+fn read_database_config(config_path: &Path) -> Result<Option<DatabaseConfig>, String> {
+    if !config_path.exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(config_path)
+        .map_err(|e| format!("Failed to read config {}: {}", config_path.display(), e))?;
+    let config = serde_json::from_str::<DatabaseConfig>(&content)
+        .map_err(|e| format!("Failed to parse config {}: {}", config_path.display(), e))?;
+    Ok(Some(config))
+}
+
+fn write_database_config(config_path: &Path, config: &DatabaseConfig) -> Result<(), String> {
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory {}: {}", parent.display(), e))?;
+    }
+
+    let content = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialize database config: {}", e))?;
+    fs::write(config_path, content)
+        .map_err(|e| format!("Failed to write config {}: {}", config_path.display(), e))
+}
+
+fn resolve_default_database_path(app_data_dir: &Path) -> Result<PathBuf, String> {
+    #[cfg(debug_assertions)]
+    {
+        let _ = app_data_dir;
+        logger::info("Running in DEBUG mode");
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .unwrap_or_else(|_| ".".to_string());
+        Ok(PathBuf::from(manifest_dir)
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("journal-dev.db"))
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        logger::info("Running in RELEASE mode");
+        fs::create_dir_all(app_data_dir).map_err(|e| {
+            format!(
+                "Failed to create app data directory {}: {}",
+                app_data_dir.display(),
+                e
+            )
+        })?;
+
+        let db_dir = app_data_dir.join("DB");
+        fs::create_dir_all(&db_dir)
+            .map_err(|e| format!("Failed to create DB directory {}: {}", db_dir.display(), e))?;
+
+        let legacy_db = app_data_dir.join("journal.db");
+        let new_db = db_dir.join("journal.db");
+
+        if legacy_db.exists() {
+            if new_db.exists() {
+                logger::info(&format!(
+                    "Legacy database exists but new DB already present, skipping migration. legacy={}, new={}",
+                    legacy_db.display(),
+                    new_db.display()
+                ));
+            } else {
+                logger::info(&format!(
+                    "Migrating legacy database to new DB directory: {} -> {}",
+                    legacy_db.display(),
+                    new_db.display()
+                ));
+                fs::rename(&legacy_db, &new_db).map_err(|e| {
+                    format!(
+                        "Failed to migrate legacy database {} -> {}: {}",
+                        legacy_db.display(),
+                        new_db.display(),
+                        e
+                    )
+                })?;
+                logger::info("Legacy database migration completed");
+            }
+        }
+
+        Ok(new_db)
+    }
+}
+
+fn resolve_database_path(app_data_dir: &Path) -> Result<PathBuf, String> {
+    let default_db_path = resolve_default_database_path(app_data_dir)?;
+    let config_path = database_config_path(app_data_dir);
+
+    let config = read_database_config(&config_path)?;
+    let custom_path = config
+        .and_then(|cfg| cfg.custom_db_path)
+        .map(|path| path.trim().to_string())
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from);
+
+    if let Some(path) = custom_path {
+        if path.exists() {
+            logger::info(&format!(
+                "Using custom database path from config: {}",
+                path.display()
+            ));
+            return Ok(path);
+        }
+
+        logger::error(&format!(
+            "Custom database path does not exist, falling back to default: {}",
+            path.display()
+        ));
+    }
+
+    Ok(default_db_path)
+}
+
+fn is_sqlite_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            let lower = ext.to_lowercase();
+            lower == "db" || lower == "sqlite" || lower == "sqlite3"
+        })
+        .unwrap_or(false)
+}
+
+async fn validate_database_file(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("Selected file does not exist: {}", path.display()));
+    }
+    if !path.is_file() {
+        return Err(format!("Selected path is not a file: {}", path.display()));
+    }
+    if !is_sqlite_file(path) {
+        return Err("Only .db/.sqlite/.sqlite3 files are supported".into());
+    }
+
+    fs::File::open(path)
+        .map_err(|e| format!("Failed to open selected database file {}: {}", path.display(), e))?;
+
+    let options = SqliteConnectOptions::new()
+        .filename(path)
+        .create_if_missing(false);
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .map_err(|e| format!("Selected file is not a valid SQLite database: {}", e))?;
+    drop(pool);
+
+    Ok(())
 }
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -84,6 +266,54 @@ fn reveal_database_file(paths: tauri::State<'_, AppPaths>) -> Result<(), String>
     Ok(())
 }
 
+#[tauri::command]
+async fn select_and_set_database_path(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (tx, rx) = oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("SQLite Database", &["db", "sqlite", "sqlite3"])
+        .pick_file(move |file_path| {
+            let _ = tx.send(file_path);
+        });
+
+    let file_path = rx
+        .await
+        .map_err(|_| "Failed to receive selected file path".to_string())?;
+    let Some(file_path) = file_path else {
+        return Ok(None);
+    };
+
+    let selected_path = file_path
+        .into_path()
+        .map_err(|e| format!("Failed to convert selected file path: {}", e))?;
+
+    validate_database_file(&selected_path).await?;
+
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+    let config_path = database_config_path(&app_data_dir);
+    let selected_path_str = selected_path
+        .to_str()
+        .ok_or_else(|| "Failed to convert selected path to string".to_string())?
+        .to_string();
+
+    write_database_config(
+        &config_path,
+        &DatabaseConfig {
+            custom_db_path: Some(selected_path_str.clone()),
+        },
+    )?;
+    logger::info(&format!(
+        "Updated custom database path at {} to {}",
+        config_path.display(),
+        selected_path_str
+    ));
+
+    Ok(Some(selected_path_str))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize logger FIRST with fallback location
@@ -92,6 +322,7 @@ pub fn run() {
     logger::info(&format!("Early log initialized at: {}", log_path.display()));
     
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -162,62 +393,13 @@ pub fn run() {
                 }
             }
 
-            // Determine database path based on build mode
-            #[cfg(debug_assertions)]
-            let db_path = {
-                logger::info("Running in DEBUG mode");
-                let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-                    .unwrap_or_else(|_| ".".to_string());
-                PathBuf::from(manifest_dir).parent().unwrap_or(Path::new(".")).join("journal-dev.db")
-            };
-            
-            #[cfg(not(debug_assertions))]
-            let db_path = {
-                logger::info("Running in RELEASE mode");
-                if let Err(e) = std::fs::create_dir_all(&app_data_dir) {
-                    logger::error(&format!("Failed to create app data directory: {}", e));
+            // Determine database path with environment-scoped custom override.
+            let db_path = match resolve_database_path(&app_data_dir) {
+                Ok(path) => path,
+                Err(e) => {
+                    logger::error(&format!("Failed to resolve database path: {}", e));
+                    return Err(e.into());
                 }
-
-                let db_dir = app_data_dir.join("DB");
-                let logs_dir = app_data_dir.join("Logs");
-
-                if let Err(e) = std::fs::create_dir_all(&db_dir) {
-                    logger::error(&format!("Failed to create DB directory: {}", e));
-                }
-                if let Err(e) = std::fs::create_dir_all(&logs_dir) {
-                    logger::error(&format!("Failed to create Logs directory: {}", e));
-                }
-
-                let legacy_db = app_data_dir.join("journal.db");
-                let new_db = db_dir.join("journal.db");
-
-                if legacy_db.exists() {
-                    if new_db.exists() {
-                        logger::info(&format!(
-                            "Legacy database exists but new DB already present, skipping migration. legacy={}, new={}",
-                            legacy_db.display(),
-                            new_db.display()
-                        ));
-                    } else {
-                        logger::info(&format!(
-                            "Migrating legacy database to new DB directory: {} -> {}",
-                            legacy_db.display(),
-                            new_db.display()
-                        ));
-                        if let Err(e) = std::fs::rename(&legacy_db, &new_db) {
-                            logger::error(&format!(
-                                "Failed to migrate legacy database: {} -> {}: {}",
-                                legacy_db.display(),
-                                new_db.display(),
-                                e
-                            ));
-                            return Err(format!("Failed to migrate legacy database: {}", e).into());
-                        }
-                        logger::info("Legacy database migration completed");
-                    }
-                }
-
-                new_db
             };
 
             let db_path_str = match db_path.to_str() {
@@ -366,9 +548,46 @@ pub fn run() {
             get_log_path,
             get_database_path,
             reveal_database_file,
+            select_and_set_database_path,
             execute_single_sql,
             execute_batch_sql
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DatabaseConfig, database_config_file_name, read_database_config, write_database_config};
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn test_path(name: &str) -> PathBuf {
+        let base = std::env::temp_dir().join("journal_todo_lib_tests");
+        fs::create_dir_all(&base).expect("create temp test root");
+        base.join(format!("{}_{}.json", name, std::process::id()))
+    }
+
+    #[test]
+    fn uses_environment_scoped_config_filename() {
+        assert_eq!(database_config_file_name("debug"), "database-config.debug.json");
+        assert_eq!(database_config_file_name("release"), "database-config.release.json");
+    }
+
+    #[test]
+    fn config_round_trip() {
+        let path = test_path("db_config_round_trip");
+        let cfg = DatabaseConfig {
+            custom_db_path: Some("/tmp/custom.db".to_string()),
+        };
+
+        write_database_config(&path, &cfg).expect("write config");
+        let loaded = read_database_config(&path).expect("read config");
+        assert_eq!(
+            loaded.and_then(|c| c.custom_db_path),
+            Some("/tmp/custom.db".to_string())
+        );
+
+        let _ = fs::remove_file(path);
+    }
 }
