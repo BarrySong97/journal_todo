@@ -58,6 +58,8 @@ describe("useTodoKeyboard Enter behavior", () => {
         selectedTodoIds: [],
         copySelectedTodos: vi.fn(),
         parentIds: new Set(),
+        collapsedIds: new Set(),
+        allTodos: todos,
       })
     )
 
@@ -103,6 +105,8 @@ describe("useTodoKeyboard Enter behavior", () => {
         selectedTodoIds: [],
         copySelectedTodos: vi.fn(),
         parentIds: new Set(),
+        collapsedIds: new Set(),
+        allTodos: todos,
       })
     )
 
@@ -147,6 +151,8 @@ describe("useTodoKeyboard Enter behavior", () => {
         selectedTodoIds: [],
         copySelectedTodos: vi.fn(),
         parentIds: new Set(),
+        collapsedIds: new Set(),
+        allTodos: todos,
       })
     )
 
@@ -170,7 +176,7 @@ describe("useTodoKeyboard Enter behavior", () => {
     expect(addTodo).toHaveBeenCalledWith("", "t1", undefined, 0)
   })
 
-  it("creates first child when Enter at end and todo has children", () => {
+  it("creates first child when Enter on expanded parent", () => {
     const updateTodoText = vi.fn()
     const addTodo = vi.fn().mockReturnValue("new-id")
     const setActiveTodoId = vi.fn()
@@ -191,6 +197,8 @@ describe("useTodoKeyboard Enter behavior", () => {
         selectedTodoIds: [],
         copySelectedTodos: vi.fn(),
         parentIds: new Set(["t1"]),
+        collapsedIds: new Set(),
+        allTodos: todos,
       })
     )
 
@@ -215,16 +223,19 @@ describe("useTodoKeyboard Enter behavior", () => {
     expect(setActiveTodoId).toHaveBeenCalledWith("new-id")
   })
 
-  it("splits and creates first child when Enter in middle and todo has children", () => {
+  it("creates sibling when Enter on collapsed parent", () => {
     const updateTodoText = vi.fn()
     const addTodo = vi.fn().mockReturnValue("new-id")
     const setActiveTodoId = vi.fn()
     const focusTodo = vi.fn()
 
-    const todos = [makeTodo("t1", "hello world", 0), makeTodo("c1", "child", 1)]
+    // visibleTodos only has the parent (children hidden)
+    const visibleTodos = [makeTodo("t1", "parent", 0)]
+    // allTodos has the full tree
+    const allTodos = [makeTodo("t1", "parent", 0), makeTodo("c1", "child", 1)]
     const { result } = renderHook(() =>
       useTodoKeyboard({
-        todos,
+        todos: visibleTodos,
         activeTodoId: "t1",
         focusTodo,
         addTodo,
@@ -236,13 +247,15 @@ describe("useTodoKeyboard Enter behavior", () => {
         selectedTodoIds: [],
         copySelectedTodos: vi.fn(),
         parentIds: new Set(["t1"]),
+        collapsedIds: new Set(["t1"]),
+        allTodos,
       })
     )
 
     const textarea = document.createElement("textarea")
-    textarea.value = "hello world"
-    textarea.selectionStart = 5
-    textarea.selectionEnd = 5
+    textarea.value = "parent"
+    textarea.selectionStart = 6
+    textarea.selectionEnd = 6
 
     act(() => {
       result.current.handleKeyDown(
@@ -255,8 +268,9 @@ describe("useTodoKeyboard Enter behavior", () => {
       )
     })
 
-    expect(updateTodoText).toHaveBeenCalledWith("t1", "hello")
-    expect(addTodo).toHaveBeenCalledWith(" world", "t1", undefined, 1)
+    expect(updateTodoText).not.toHaveBeenCalled()
+    // Should insert after last descendant (c1) at parent's level (0)
+    expect(addTodo).toHaveBeenCalledWith("", "c1", undefined, 0)
     expect(setActiveTodoId).toHaveBeenCalledWith("new-id")
   })
 })

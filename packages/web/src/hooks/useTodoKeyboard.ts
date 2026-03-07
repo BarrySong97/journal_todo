@@ -14,6 +14,8 @@ interface UseTodoKeyboardProps {
   selectedTodoIds: string[]
   copySelectedTodos: () => void
   parentIds: Set<string>
+  collapsedIds: Set<string>
+  allTodos: TodoItem[]
 }
 
 export const splitTodoTextForEnter = (
@@ -43,6 +45,8 @@ export function useTodoKeyboard({
   selectedTodoIds,
   copySelectedTodos,
   parentIds,
+  collapsedIds,
+  allTodos,
 }: UseTodoKeyboardProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => {
@@ -175,12 +179,33 @@ export function useTodoKeyboard({
           }
 
           if (parentIds.has(currentTodo.id)) {
-            const newTodoId = addTodo(newTodoText, currentTodo.id, undefined, currentTodo.level + 1)
-            setActiveTodoId(newTodoId)
-            setTimeout(
-              () => focusTodo(newTodoId, newTodoText.length > 0 ? "start" : undefined),
-              0
-            )
+            if (collapsedIds.has(currentTodo.id)) {
+              // Collapsed: create sibling after entire subtree
+              const allIndex = allTodos.findIndex((t) => t.id === currentTodo.id)
+              let lastDescendantIndex = allIndex
+              for (let i = allIndex + 1; i < allTodos.length; i += 1) {
+                if (allTodos[i].level > currentTodo.level) {
+                  lastDescendantIndex = i
+                } else {
+                  break
+                }
+              }
+              const afterTodoId = allTodos[lastDescendantIndex].id
+              const newTodoId = addTodo(newTodoText, afterTodoId, undefined, currentTodo.level)
+              setActiveTodoId(newTodoId)
+              setTimeout(
+                () => focusTodo(newTodoId, newTodoText.length > 0 ? "start" : undefined),
+                0
+              )
+            } else {
+              // Expanded: create first child
+              const newTodoId = addTodo(newTodoText, currentTodo.id, undefined, currentTodo.level + 1)
+              setActiveTodoId(newTodoId)
+              setTimeout(
+                () => focusTodo(newTodoId, newTodoText.length > 0 ? "start" : undefined),
+                0
+              )
+            }
             break
           }
 
@@ -293,6 +318,8 @@ export function useTodoKeyboard({
       selectedTodoIds,
       copySelectedTodos,
       parentIds,
+      collapsedIds,
+      allTodos,
     ]
   )
 

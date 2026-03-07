@@ -63,6 +63,8 @@ const measuring = {
   },
 }
 
+const COLLAPSED_STORAGE_KEY = "journal-collapsed-todos"
+
 export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
   function TodoList({ selectionRect, onClearSelection }, ref) {
     const {
@@ -90,7 +92,21 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
     // UI state
     const [activeTodoId, setActiveTodoId] = useState<string | null>(null)
     const [selectedTodoIds, setSelectedTodoIds] = useState<string[]>([])
-    const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set())
+    const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
+      try {
+        const stored = localStorage.getItem(COLLAPSED_STORAGE_KEY)
+        if (stored) {
+          return new Set(JSON.parse(stored) as string[])
+        }
+      } catch { /* ignore */ }
+      return new Set()
+    })
+    useEffect(() => {
+      try {
+        localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsedIds]))
+      } catch { /* ignore */ }
+    }, [collapsedIds])
+
     const [toastMessage, setToastMessage] = useState("")
     const [toastOpen, setToastOpen] = useState(false)
 
@@ -303,6 +319,8 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       selectedTodoIds,
       copySelectedTodos,
       parentIds,
+      collapsedIds,
+      allTodos: flattenedTodos,
     })
 
     // Focus management
