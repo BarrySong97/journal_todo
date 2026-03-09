@@ -1,19 +1,19 @@
 {
-  "version": "0.1.13",
+  "version": "0.1.14",
   "notes": "## 🔧 Other Changes\n\n- chore: bump version to v0.1.11\n- chore: update latest.json for version 0.1.10",
-  "pub_date": "2026-03-01T03:29:09Z",
+  "pub_date": "2026-03-09T06:18:49Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjA0NzhoaFRFa3FISlFlMitmYzdoRTJEQzUyc2NnM2dRY3FKeDFpWWkxVUpqcWV0UW5Dem94NEJndHl1L1VTTWdVaWpqUVovN3ZMTVl1K21Lb0Z4MUFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzY5ODQzMjU0CWZpbGU6Sm91cm5hbFRvZG9fMC4xLjExX3g2NC1zZXR1cC5leGUKWjlvb1o4cEM1cVcxd2V1blRuUkp1dmFZZVU4YnlMZ2tPVTNTNUlFTFJtdzVPUlIrYnFhSEVKUkx0U0hZcWI3ZytiT2hQMzVEeEVnYi9QME5qTnlsQnc9PQo=",
       "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.11/JournalTodo_0.1.11_x64-setup.exe"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjQxWER3K0RPLzBlS1BWK011TTg2ME41Nkl3NVhjZGZOMmpSbnFvaEZoWEhONkdvNHo0S1FlTElWMzhRdlBtbng2WklPdDR1Z2o2VWxwYTNSNjF5T3cwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcyMzM1NzAwCWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5negp1eE1zWGVGODBHalJ2bCtNZnFCeXNTU1V2ZUYyazJSYTZpUHVUWDFEOWtVSjJjeVlDNm11dUNVODhsOGkrcGI5bWV3dlJhSEhMUHEvVXlJa2Y2ajNBdz09Cg==",
-      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.13/JournalTodo_0.1.13_x64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjhrSERyTlJuMElRamVFOVlaSGF6b3pEdnNHa0hPbWJRaVZ3T2J1M3JpSCtEbUJmOHFnbXVHUCtrQ0RoMFNCWWF3QXp5bW1CR1A0enVyS0FJTkJGTEFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczMDM3MDY2CWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5negpqV0FVb21iZlFMY3d2SHpIY0ZtRnc0eDUxaVRNVkJkdjJMSGt3VzdyN0VaVXIyUEE5NE1oVDFIcHE2akY5eklwWEQvR0k5dmhGOVVPc085STFSV0NBZz09Cg==",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.14/JournalTodo_0.1.14_x64.app.tar.gz"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjR2WjRCMmhza09oTVBYcE5wcU5JR2VIRTN3NVdRbC9ycWJDaWxOaDZJRS94bGpGVWhtWlZCRCtoQ1JTelFWVjZxWENMTXBWVERWUFVPRk9CUFQ3ZFFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcyMzM1NzQyCWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5nego3QzNYWENPTFd5dGozUkhKOUhHUFdvSTFPQ0dtbzFSK2MwSWNPRkRUOUw1djNZNVNxOCtqNmJENEhTS2ExZXRROUNOWEVkRVZmRERGYUhtT1lTNkxDdz09Cg==",
-      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.13/JournalTodo_0.1.13_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjZWMWNKeHczaGZrTEZkTmdRZkpVMWxzTG50bUxQNWdrNTdqdUZWUFVBbWNvL2dqRTJ0dFZXWE9USkh3dlR2UlpLa3VwcHZ1M01pMTJaRWpwU0xJRFFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczMDM3MTEzCWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5negpFVkR3Z3lmbXBJZE9KbVBNaE5GNHJ1aVpNUkVhbjZlaEdrNEcwclAzVW9INmdHdXp2NFhwZ2xQcDNWNUNtSERFb0tyakpvL2lpVGdNaXprUFFHQ2NDdz09Cg==",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.14/JournalTodo_0.1.14_aarch64.app.tar.gz"
     }
   }
 }

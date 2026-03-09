@@ -100,7 +100,7 @@ export function TodoCalendar({
               variant="ghost"
               onClick={() => onSelectDate(day)}
               className={cn(
-                "h-16 cursor-pointer flex-col items-center justify-center rounded-lg px-2 py-1.5 text-center",
+                "h-16 cursor-pointer flex-col items-center justify-start rounded-lg px-2 py-1.5 text-center",
                 selected &&
                   "bg-primary text-primary-foreground hover:!bg-primary/60 hover:!text-primary-foreground hover:ring-1 hover:ring-primary-foreground/50",
                 !selected && outside && "text-muted-foreground/50",

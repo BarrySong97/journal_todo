@@ -52,7 +52,10 @@ export function DateNavigation({ className }: DateNavigationProps) {
     const counts: Record<string, number> = {}
     const pages = currentWorkspace?.pages ?? {}
     for (const [dateKey, page] of Object.entries(pages)) {
-      counts[dateKey] = page.todos.filter((todo) => todo.status === "todo").length
+      counts[dateKey] = page.todos.filter((todo) => {
+        if (todo.status !== "todo") return false
+        return typeof todo.text === "string" && todo.text.trim().length > 0
+      }).length
     }
     return counts
   }, [currentWorkspace])
