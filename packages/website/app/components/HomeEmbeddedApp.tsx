@@ -10,6 +10,13 @@ const EmbeddedApp = dynamic(() => import("@journal-todo/web/AppTSX"), {
   ),
 })
 
+const DEFAULT_EMBEDDED_TODOS = [
+  "Write down the top 3 priorities for today",
+  "Review yesterday's unfinished tasks",
+  "Plan one deep work block",
+  "Capture a quick note before ending the day",
+]
+
 export function HomeEmbeddedApp() {
   const [isAppReady, setIsAppReady] = useState(false)
 
@@ -22,7 +29,11 @@ export function HomeEmbeddedApp() {
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-gradient-to-b from-[#f3f3f3] to-[#ececec]">
-      <EmbeddedApp onReady={() => setIsAppReady(true)} />
+      <EmbeddedApp
+        onReady={() => setIsAppReady(true)}
+        initialTodos={DEFAULT_EMBEDDED_TODOS}
+        seedStorageKey="journal-website-home-seeded-v1"
+      />
       <div
         className={`absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-b from-[#f3f3f3] to-[#ececec] transition-opacity duration-300 ${isAppReady ? "pointer-events-none opacity-0" : "opacity-100"}`}
       >

@@ -417,6 +417,44 @@ upload_latest_json_only() {
   echo -e "${GREEN}latest.json uploaded with --clobber for v${version}${NC}"
 }
 
+update_downloads_json_version() {
+  local version="$1"
+
+  if [[ ! -f "$DOWNLOADS_JSON_PATH" ]]; then
+    echo -e "${YELLOW}Skipped downloads.json update (file not found): ${DOWNLOADS_JSON_PATH}${NC}"
+    return
+  fi
+
+  DOWNLOADS_JSON_PATH="$DOWNLOADS_JSON_PATH" RELEASE_VERSION="$version" node - <<'NODE'
+const fs = require("fs")
+
+const filePath = process.env.DOWNLOADS_JSON_PATH
+const version = process.env.RELEASE_VERSION
+const semverPattern = /\d+\.\d+\.\d+/g
+
+const raw = fs.readFileSync(filePath, "utf8")
+const data = JSON.parse(raw)
+
+data.version = version
+data.generatedAt = new Date().toISOString()
+
+for (const group of data.groups || []) {
+  for (const item of group.items || []) {
+    if (typeof item.assetName === "string") {
+      item.assetName = item.assetName.replace(semverPattern, version)
+    }
+    if (typeof item.url === "string") {
+      item.url = item.url.replace(semverPattern, version)
+    }
+  }
+}
+
+fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`)
+NODE
+
+  echo -e "${GREEN}Updated downloads.json to v${version}${NC}"
+}
+
 step_prepare() {
   local version_type="${1:-patch}"
   validate_version_type "$version_type"
@@ -510,6 +548,7 @@ step_upload() {
 
   if [[ "$mode" == "latest-only" ]]; then
     upload_latest_json_only "$platform" "$version"
+    update_downloads_json_version "$version"
     return
   fi
 
@@ -520,6 +559,7 @@ step_upload() {
   compute_asset_diff
   show_asset_diff
   upload_with_strategy "$version"
+  update_downloads_json_version "$version"
 
   echo -e "${GREEN}Upload step completed for v${version}${NC}"
 }
