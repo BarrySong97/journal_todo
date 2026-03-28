@@ -1,7 +1,7 @@
 "use client"
 
 import { Moon, Sun, Check, ChevronDown, RotateCcw } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -80,8 +80,7 @@ const AutoUpdateTracker = () => {
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null)
   const [isInstalling, setIsInstalling] = useState(false)
   const toastIdRef = useRef<string | number | null>(null)
-  const isProductionRuntime =
-    typeof process !== "undefined" && process.env?.NODE_ENV === "production"
+  const isProductionRuntime = import.meta.env.PROD
 
   useEffect(() => {
     let isActive = true
@@ -105,7 +104,7 @@ const AutoUpdateTracker = () => {
     }
   }, [])
 
-  const handleInstall = async () => {
+  const handleInstall = useCallback(async () => {
     if (!availableUpdate || isInstalling) return
 
     setIsInstalling(true)
@@ -169,7 +168,7 @@ const AutoUpdateTracker = () => {
       console.warn("Updater install failed", error)
       setIsInstalling(false)
     }
-  }
+  }, [availableUpdate, isInstalling])
 
   useEffect(() => {
     if (!availableUpdate || toastIdRef.current) return
@@ -183,7 +182,7 @@ const AutoUpdateTracker = () => {
     })
 
     toastIdRef.current = id
-  }, [availableUpdate, handleInstall, isInstalling, toast])
+  }, [availableUpdate, handleInstall])
 
   return null
 }
