@@ -7,6 +7,7 @@ import { Toaster } from "@journal-todo/ui"
 import { DateNavigation } from "./components/journal/DateNavigation"
 import { JournalApp } from "./components/journal/JournalApp"
 import { useJournal } from "./hooks/useJournal"
+import { isMeaningfulTodo } from "./lib/utils/todoFilters"
 
 interface AppTSXProps {
   onReady?: () => void
@@ -30,7 +31,7 @@ export function AppTSX({ onReady, initialTodos = [], seedStorageKey = DEFAULT_SE
 
     const hasMeaningfulTodo =
       Object.values(currentWorkspace?.pages ?? {}).some((page) =>
-        page.todos.some((todo) => typeof todo.text === "string" && todo.text.trim().length > 0)
+        page.todos.some((todo) => isMeaningfulTodo(todo))
       )
 
     if (typeof window !== "undefined" && window.localStorage.getItem(seedStorageKey)) {

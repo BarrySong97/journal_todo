@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid"
 import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing"
 import type { TodoItem, JournalPage, TodoStatus, Workspace } from "../types/journal"
 import { getTodayKey, formatDateKey } from "../utils/dateUtils"
+import { isIncompleteMeaningfulTodo } from "../utils/todoFilters"
 import {
   initializeStorage,
   getWorkspaces,
@@ -15,9 +16,6 @@ import {
   updateTodo as updateTodoRepo,
   deleteTodo as deleteTodoRepo,
 } from "@journal-todo/api"
-
-const isBlankText = (value: unknown) =>
-  typeof value !== "string" || value.trim().length === 0
 
 const extractTags = (text: string) => {
   const matches = text.match(/#[^\s#]+/g) ?? []
@@ -200,15 +198,6 @@ const persistTodoCreate = (workspaceId: string, date: string, page: JournalPage,
 const persistTodoDelete = (todoId: string) => {
   deleteTodoRepo(todoId).catch((error) => {
     console.error(`[persist] Failed to delete todo ${todoId}:`, error)
-  })
-}
-
-const persistTodoMove = (workspaceId: string, toDate: string, todo: TodoItem) => {
-  ;(async () => {
-    await deleteTodoRepo(todo.id)
-    await createTodoRepo(workspaceId, toDate, todo)
-  })().catch((error) => {
-    console.error(`[persist] Failed to move todo ${todo.id}:`, error)
   })
 }
 
@@ -968,103 +957,103 @@ export const useJournalStore = create<JournalStore>()(
         if (!workspace) return 0
 
         const todayKey = getTodayKey()
-        const yesterdayDate = new Date(todayKey)
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1)
-        const yesterdayKey = formatDateKey(yesterdayDate)
         const todayPage = workspace.pages[todayKey] || getOrCreatePage(todayKey)
-        const yesterdayPage = workspace.pages[yesterdayKey]
+        const todayTodoIds = new Set(todayPage.todos.map((todo) => todo.id))
+        const rolloverPrefix = `rollover:${todayKey}:`
 
-        if (!yesterdayPage) return 0
+        const sourceDateKeys = Object.keys(workspace.pages)
+          .filter((dateKey) => dateKey < todayKey)
+          .sort((a, b) => a.localeCompare(b))
+        if (sourceDateKeys.length === 0) return 0
 
-        // Get existing order values in today's page
-        const sortedTodayTodos = [...todayPage.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
-        let lastOrder = sortedTodayTodos[sortedTodayTodos.length - 1]?.order ?? null
-
-        const sortedYesterdayTodos = [...yesterdayPage.todos].sort((a, b) =>
+        const sortedTodayTodos = [...todayPage.todos].sort((a, b) =>
           a.order < b.order ? -1 : a.order > b.order ? 1 : 0
         )
-        const parentMap = deriveParentMap(sortedYesterdayTodos)
+        const lastOrder = sortedTodayTodos[sortedTodayTodos.length - 1]?.order ?? null
 
-        const baseSet = new Set<string>()
-        for (const todo of sortedYesterdayTodos) {
-          if (todo.status === "todo" && !isBlankText(todo.text)) {
-            baseSet.add(todo.id)
+        const copiedTodos: TodoItem[] = []
+        for (const dateKey of sourceDateKeys) {
+          const sourcePage = workspace.pages[dateKey]
+          if (!sourcePage) continue
+
+          const sortedSourceTodos = [...sourcePage.todos].sort((a, b) =>
+            a.order < b.order ? -1 : a.order > b.order ? 1 : 0
+          )
+          if (sortedSourceTodos.length === 0) continue
+
+          const parentMap = deriveParentMap(sortedSourceTodos)
+          const includedSet = new Set<string>()
+          for (const todo of sortedSourceTodos) {
+            if (isIncompleteMeaningfulTodo(todo)) {
+              includedSet.add(todo.id)
+            }
+          }
+          if (includedSet.size === 0) continue
+
+          const roots = sortedSourceTodos.filter((todo) => {
+            if (!includedSet.has(todo.id)) return false
+
+            let parentId = parentMap.get(todo.id) ?? null
+            while (parentId) {
+              if (includedSet.has(parentId)) return false
+              parentId = parentMap.get(parentId) ?? null
+            }
+            return true
+          })
+          if (roots.length === 0) continue
+
+          for (const root of roots) {
+            const startIndex = sortedSourceTodos.findIndex((todo) => todo.id === root.id)
+            if (startIndex < 0) continue
+            let endIndex = startIndex + 1
+            while (endIndex < sortedSourceTodos.length && sortedSourceTodos[endIndex].level > root.level) {
+              endIndex += 1
+            }
+
+            const block = sortedSourceTodos.slice(startIndex, endIndex)
+            for (const todo of block) {
+              if (!includedSet.has(todo.id)) continue
+
+              const copiedId = `${rolloverPrefix}${todo.id}`
+              if (todayTodoIds.has(copiedId)) continue
+
+              const now = new Date()
+              let parentId = parentMap.get(todo.id) ?? null
+              let includedDepth = 0
+              while (parentId) {
+                if (includedSet.has(parentId)) {
+                  includedDepth += 1
+                }
+                parentId = parentMap.get(parentId) ?? null
+              }
+
+              copiedTodos.push({
+                ...todo,
+                id: copiedId,
+                parentId: null,
+                level: includedDepth,
+                createdAt: now,
+                updatedAt: now,
+              })
+              todayTodoIds.add(copiedId)
+            }
           }
         }
 
-        if (baseSet.size === 0) return 0
+        if (copiedTodos.length === 0) return 0
 
-        // Include ancestors to preserve structure
-        for (const id of Array.from(baseSet)) {
-          let parentId = parentMap.get(id) ?? null
-          while (parentId) {
-            baseSet.add(parentId)
-            parentId = parentMap.get(parentId) ?? null
-          }
-        }
-
-        // Determine root items to move (parent not in set)
-        const roots = sortedYesterdayTodos.filter((todo) => {
-          if (!baseSet.has(todo.id)) return false
-          const parentId = parentMap.get(todo.id) ?? null
-          return !parentId || !baseSet.has(parentId)
-        })
-
-        if (roots.length === 0) return 0
-
-        const movedBlocks: TodoItem[] = []
-        for (const root of roots) {
-          const startIndex = sortedYesterdayTodos.findIndex((t) => t.id === root.id)
-          if (startIndex < 0) continue
-          let endIndex = startIndex + 1
-          while (
-            endIndex < sortedYesterdayTodos.length &&
-            sortedYesterdayTodos[endIndex].level > root.level
-          ) {
-            endIndex += 1
-          }
-          const block = sortedYesterdayTodos.slice(startIndex, endIndex)
-          movedBlocks.push(...block)
-        }
-
-        if (movedBlocks.length === 0) return 0
-
-        // Rebase each root to level 0 while preserving structure
-        const movedAdjusted: TodoItem[] = []
-        let movedIndex = 0
-        for (const root of roots) {
-          const startIndex = movedBlocks.findIndex((t) => t.id === root.id)
-          if (startIndex < 0) continue
-          let endIndex = startIndex + 1
-          while (endIndex < movedBlocks.length && movedBlocks[endIndex].level > root.level) {
-            endIndex += 1
-          }
-          const block = movedBlocks.slice(startIndex, endIndex)
-          const levelDelta = -root.level
-          for (const todo of block) {
-            movedAdjusted.push({
-              ...todo,
-              level: todo.level + levelDelta,
-              updatedAt: new Date(),
-            })
-            movedIndex += 1
-          }
-        }
-
-        const newOrders = generateNKeysBetween(lastOrder, null, movedAdjusted.length)
-        const movedWithOrder = movedAdjusted.map((todo, index) => ({
+        const newOrders = generateNKeysBetween(lastOrder, null, copiedTodos.length)
+        const copiedWithOrder = copiedTodos.map((todo, index) => ({
           ...todo,
           order: newOrders[index],
         }))
 
-        const combined = [...sortedTodayTodos, ...movedWithOrder]
-        const movedWithParent = movedWithOrder.map((todo) => {
+        const combined = [...sortedTodayTodos, ...copiedWithOrder]
+        const copiedWithParent = copiedWithOrder.map((todo) => {
           const idx = combined.findIndex((t) => t.id === todo.id)
           const parentId = getParentIdForIndex(combined, idx, todo.level)
           return { ...todo, parentId }
         })
-
-        const movedIds = new Set(movedBlocks.map((t) => t.id))
 
         set((state) => {
           const ws = state.workspaces[currentWorkspaceId]
@@ -1072,24 +1061,17 @@ export const useJournalStore = create<JournalStore>()(
 
           const today = ws.pages[todayKey]
           if (today) {
-            today.todos.push(...movedWithParent)
+            today.todos.push(...copiedWithParent)
             today.updatedAt = new Date()
-          }
-
-          const yesterday = ws.pages[yesterdayKey]
-          if (yesterday) {
-            yesterday.todos = yesterday.todos.filter((t) => !movedIds.has(t.id))
-            yesterday.updatedAt = new Date()
           }
         })
 
         ensurePageExists(currentWorkspaceId, todayPage)
-
-        for (const todo of movedWithParent) {
-          persistTodoMove(currentWorkspaceId, todayKey, todo)
+        for (const todo of copiedWithParent) {
+          persistTodoCreate(currentWorkspaceId, todayKey, todayPage, todo)
         }
 
-        return movedWithParent.length
+        return copiedWithParent.length
       },
     }
   })

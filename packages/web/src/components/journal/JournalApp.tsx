@@ -27,11 +27,11 @@ export function JournalApp() {
   const [toastOpen, setToastOpen] = useState(false)
 
   const handleRollover = () => {
-    const movedCount = rollOverTodosToToday()
+    const copiedCount = rollOverTodosToToday()
     const message =
-      movedCount > 0
-        ? `Moved ${movedCount} unfinished todo${movedCount > 1 ? "s" : ""} to today.`
-        : "No unfinished todos to move."
+      copiedCount > 0
+        ? `Copied ${copiedCount} unfinished todo${copiedCount > 1 ? "s" : ""} to today.`
+        : "No unfinished todos to copy."
     setToastMessage(message)
     setToastOpen(true)
     setIsRolloverOpen(false)
@@ -55,7 +55,7 @@ export function JournalApp() {
           <AlertDialogHeader>
             <AlertDialogTitle>流转未完成的 To-do</AlertDialogTitle>
             <AlertDialogDescription>
-              这会把以前日期中未完成的 To-do 移动到今天。
+              这会把以前日期中未完成的 To-do 复制到今天。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -55,6 +55,7 @@ import {
   resolveSqlitePath,
 } from "@/lib/appInfo"
 import type { Workspace } from "@/lib/types/journal"
+import { countIncompleteMeaningfulTodos } from "@/lib/utils/todoFilters"
 
 interface JournalFooterProps {
   className?: string
@@ -264,7 +265,7 @@ export function JournalFooter({
       if (!workspace) continue
       let count = 0
       for (const page of Object.values(workspace.pages)) {
-        count += page.todos.filter((t) => t.status === "todo").length
+        count += countIncompleteMeaningfulTodos(page.todos)
       }
       counts[id] = count
     }

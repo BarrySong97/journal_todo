@@ -12,6 +12,7 @@ import {
 } from "@journal-todo/ui"
 import { useJournal } from "@/hooks/useJournal"
 import { getTodayKey, parseDateKey } from "@/lib/utils/dateUtils"
+import { countIncompleteMeaningfulTodos } from "@/lib/utils/todoFilters"
 import { format } from "date-fns"
 import { zhCN } from "date-fns/locale"
 import { ChevronLeft, ChevronRight } from "lucide-react"
@@ -52,10 +53,7 @@ export function DateNavigation({ className }: DateNavigationProps) {
     const counts: Record<string, number> = {}
     const pages = currentWorkspace?.pages ?? {}
     for (const [dateKey, page] of Object.entries(pages)) {
-      counts[dateKey] = page.todos.filter((todo) => {
-        if (todo.status !== "todo") return false
-        return typeof todo.text === "string" && todo.text.trim().length > 0
-      }).length
+      counts[dateKey] = countIncompleteMeaningfulTodos(page.todos)
     }
     return counts
   }, [currentWorkspace])

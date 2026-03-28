@@ -211,7 +211,7 @@ describe("journalStore reorder and hierarchy", () => {
     expect(child?.level).toBe(1)
   })
 
-  it("rollOverTodosToToday moves yesterday todos and preserves structure", () => {
+  it("rollOverTodosToToday copies unfinished todos from previous days and preserves source page", () => {
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(today.getDate() - 1)
@@ -237,17 +237,187 @@ describe("journalStore reorder and hierarchy", () => {
     })
 
     const { rollOverTodosToToday } = useJournalStore.getState()
-    const movedCount = rollOverTodosToToday()
+    const copiedCount = rollOverTodosToToday()
 
     const ws = useJournalStore.getState().workspaces[workspaceId]
     const todayPage = ws.pages[todayKey]
     const yesterdayPage = ws.pages[yesterdayKey]
 
-    expect(movedCount).toBe(3)
-    expect(todayPage.todos.map((t) => t.id)).toEqual(["p1", "c1", "p2"])
-    expect(todayPage.todos.find((t) => t.id === "p1")?.level).toBe(0)
-    expect(todayPage.todos.find((t) => t.id === "c1")?.level).toBe(1)
-    expect(yesterdayPage.todos).toHaveLength(0)
+    expect(copiedCount).toBe(3)
+    expect(todayPage.todos.map((t) => t.id)).toEqual([
+      `rollover:${todayKey}:p1`,
+      `rollover:${todayKey}:c1`,
+      `rollover:${todayKey}:p2`,
+    ])
+    expect(todayPage.todos.find((t) => t.id === `rollover:${todayKey}:p1`)?.level).toBe(0)
+    expect(todayPage.todos.find((t) => t.id === `rollover:${todayKey}:c1`)?.level).toBe(1)
+    expect(yesterdayPage.todos.map((t) => t.id)).toEqual(["p1", "c1", "p2"])
+  })
+
+  it("rollOverTodosToToday does not copy empty todos", () => {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const yesterdayKey = formatDateKey(yesterday)
+    const todayKey = getTodayKey()
+
+    const { workspaceId } = setStoreStateWithDate(yesterdayKey, [
+      makeTodo("blank", "a0", 0, null),
+      makeTodo("task", "a1", 0, null),
+    ])
+
+    useJournalStore.setState((state) => {
+      const ws = state.workspaces[workspaceId]
+      if (!ws) return
+      ws.pages[yesterdayKey].todos[0].text = "   "
+      ws.pages[todayKey] = {
+        date: todayKey,
+        todos: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    })
+
+    const { rollOverTodosToToday } = useJournalStore.getState()
+    const copiedCount = rollOverTodosToToday()
+    const todayPage = useJournalStore.getState().workspaces[workspaceId].pages[todayKey]
+
+    expect(copiedCount).toBe(1)
+    expect(todayPage.todos.map((todo) => todo.id)).toEqual([`rollover:${todayKey}:task`])
+  })
+
+  it("rollOverTodosToToday skips blank parent but keeps non-empty child with recalculated level", () => {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const yesterdayKey = formatDateKey(yesterday)
+    const todayKey = getTodayKey()
+
+    const { workspaceId } = setStoreStateWithDate(yesterdayKey, [
+      makeTodo("parent", "a0", 0, null),
+      makeTodo("child", "a0V", 1, "parent"),
+    ])
+
+    useJournalStore.setState((state) => {
+      const ws = state.workspaces[workspaceId]
+      if (!ws) return
+      ws.pages[yesterdayKey].todos[0].text = " "
+      ws.pages[yesterdayKey].todos[1].text = "child"
+      ws.pages[todayKey] = {
+        date: todayKey,
+        todos: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+    })
+
+    const { rollOverTodosToToday } = useJournalStore.getState()
+    const copiedCount = rollOverTodosToToday()
+    const todayPage = useJournalStore.getState().workspaces[workspaceId].pages[todayKey]
+    const copiedChild = todayPage.todos.find((todo) => todo.id === `rollover:${todayKey}:child`)
+
+    expect(copiedCount).toBe(1)
+    expect(todayPage.todos.some((todo) => todo.id === `rollover:${todayKey}:parent`)).toBe(false)
+    expect(copiedChild?.level).toBe(0)
+    expect(copiedChild?.parentId ?? null).toBeNull()
+  })
+
+  it("rollOverTodosToToday copies from all previous dates ordered old to new", () => {
+    const today = new Date()
+    const twoDaysAgo = new Date(today)
+    twoDaysAgo.setDate(today.getDate() - 2)
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const twoDaysAgoKey = formatDateKey(twoDaysAgo)
+    const yesterdayKey = formatDateKey(yesterday)
+    const todayKey = getTodayKey()
+    const workspaceId = "ws-test"
+
+    useJournalStore.setState({
+      currentWorkspaceId: workspaceId,
+      workspaceOrder: [workspaceId],
+      workspaceRecentOrder: [workspaceId],
+      workspaces: {
+        [workspaceId]: {
+          id: workspaceId,
+          name: "Test",
+          currentDateKey: todayKey,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          pages: {
+            [twoDaysAgoKey]: {
+              date: twoDaysAgoKey,
+              todos: [makeTodo("old", "a0", 0, null)],
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+            [yesterdayKey]: {
+              date: yesterdayKey,
+              todos: [makeTodo("new", "a0", 0, null)],
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+            [todayKey]: {
+              date: todayKey,
+              todos: [],
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          },
+        },
+      },
+    })
+
+    const { rollOverTodosToToday } = useJournalStore.getState()
+    const copiedCount = rollOverTodosToToday()
+    const todayPage = useJournalStore.getState().workspaces[workspaceId].pages[todayKey]
+
+    expect(copiedCount).toBe(2)
+    expect(todayPage.todos.map((todo) => todo.id)).toEqual([
+      `rollover:${todayKey}:old`,
+      `rollover:${todayKey}:new`,
+    ])
+  })
+
+  it("rollOverTodosToToday is idempotent for the same day", () => {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const yesterdayKey = formatDateKey(yesterday)
+    const todayKey = getTodayKey()
+
+    setStoreStateWithDate(yesterdayKey, [
+      makeTodo("p1", "a0", 0, null),
+      makeTodo("c1", "a0V", 1, "p1"),
+    ])
+
+    const { rollOverTodosToToday } = useJournalStore.getState()
+    const firstCount = rollOverTodosToToday()
+    const secondCount = rollOverTodosToToday()
+    const todayPage = useJournalStore.getState().workspaces["ws-test"].pages[todayKey]
+    const copiedTodos = todayPage.todos.filter((todo) => todo.id.startsWith(`rollover:${todayKey}:`))
+
+    expect(firstCount).toBe(2)
+    expect(secondCount).toBe(0)
+    expect(copiedTodos).toHaveLength(2)
+  })
+
+  it("rollOverTodosToToday persists creates without deleting source todos", async () => {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const yesterdayKey = formatDateKey(yesterday)
+
+    setStoreStateWithDate(yesterdayKey, [
+      makeTodo("t1", "a0", 0, null),
+    ])
+
+    const { rollOverTodosToToday } = useJournalStore.getState()
+    rollOverTodosToToday()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(apiMocks.createTodo).toHaveBeenCalled()
+    expect(apiMocks.deleteTodo).not.toHaveBeenCalled()
   })
 
   it("persists reorder changes for each moved item", () => {
