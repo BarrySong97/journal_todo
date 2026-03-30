@@ -261,7 +261,7 @@ interface JournalStore {
     dateKey?: string
   ) => void
   getTodo: (todoId: string, dateKey?: string) => TodoItem | undefined
-  rollOverTodosToToday: () => number
+  rollOverTodosToToday: (mode?: "copy" | "move") => number
 }
 
 export const useJournalStore = create<JournalStore>()(
@@ -951,7 +951,7 @@ export const useJournalStore = create<JournalStore>()(
         return page.todos.find((t) => t.id === todoId)
       },
 
-      rollOverTodosToToday: () => {
+      rollOverTodosToToday: (mode: "copy" | "move" = "copy") => {
         const { currentWorkspaceId, workspaces, getOrCreatePage } = get()
         const workspace = workspaces[currentWorkspaceId]
         if (!workspace) return 0
@@ -972,6 +972,8 @@ export const useJournalStore = create<JournalStore>()(
         const lastOrder = sortedTodayTodos[sortedTodayTodos.length - 1]?.order ?? null
 
         const copiedTodos: TodoItem[] = []
+        const sourceDeletions = new Map<string, string[]>()
+
         for (const dateKey of sourceDateKeys) {
           const sourcePage = workspace.pages[dateKey]
           if (!sourcePage) continue
@@ -1002,6 +1004,10 @@ export const useJournalStore = create<JournalStore>()(
           })
           if (roots.length === 0) continue
 
+          // P2b fix: track entire blocks for deletion, not just includedSet,
+          // so completed/empty descendants don't become orphans when the parent is moved
+          const blockDeletionIds = new Set<string>()
+
           for (const root of roots) {
             const startIndex = sortedSourceTodos.findIndex((todo) => todo.id === root.id)
             if (startIndex < 0) continue
@@ -1011,6 +1017,12 @@ export const useJournalStore = create<JournalStore>()(
             }
 
             const block = sortedSourceTodos.slice(startIndex, endIndex)
+
+            // Collect all items in the block for deletion in move mode (P2b)
+            for (const todo of block) {
+              blockDeletionIds.add(todo.id)
+            }
+
             for (const todo of block) {
               if (!includedSet.has(todo.id)) continue
 
@@ -1038,9 +1050,35 @@ export const useJournalStore = create<JournalStore>()(
               todayTodoIds.add(copiedId)
             }
           }
+
+          if (mode === "move" && blockDeletionIds.size > 0) {
+            sourceDeletions.set(dateKey, [...blockDeletionIds])
+          }
         }
 
-        if (copiedTodos.length === 0) return 0
+        // P2a fix: apply move deletions even when nothing new was copied
+        // (e.g. already rolled over today in copy mode, then switched to move)
+        if (copiedTodos.length === 0) {
+          if (mode === "move" && sourceDeletions.size > 0) {
+            set((state) => {
+              const ws = state.workspaces[currentWorkspaceId]
+              if (!ws) return
+              for (const [dateKey, todoIds] of sourceDeletions) {
+                const page = ws.pages[dateKey]
+                if (!page) continue
+                const toDelete = new Set(todoIds)
+                page.todos = page.todos.filter((t) => !toDelete.has(t.id))
+                page.updatedAt = new Date()
+              }
+            })
+            for (const todoIds of sourceDeletions.values()) {
+              for (const todoId of todoIds) {
+                persistTodoDelete(todoId)
+              }
+            }
+          }
+          return 0
+        }
 
         const newOrders = generateNKeysBetween(lastOrder, null, copiedTodos.length)
         const copiedWithOrder = copiedTodos.map((todo, index) => ({
@@ -1064,11 +1102,29 @@ export const useJournalStore = create<JournalStore>()(
             today.todos.push(...copiedWithParent)
             today.updatedAt = new Date()
           }
+
+          if (mode === "move" && sourceDeletions.size > 0) {
+            for (const [dateKey, todoIds] of sourceDeletions) {
+              const page = ws.pages[dateKey]
+              if (!page) continue
+              const toDelete = new Set(todoIds)
+              page.todos = page.todos.filter((t) => !toDelete.has(t.id))
+              page.updatedAt = new Date()
+            }
+          }
         })
 
         ensurePageExists(currentWorkspaceId, todayPage)
         for (const todo of copiedWithParent) {
           persistTodoCreate(currentWorkspaceId, todayKey, todayPage, todo)
+        }
+
+        if (mode === "move" && sourceDeletions.size > 0) {
+          for (const todoIds of sourceDeletions.values()) {
+            for (const todoId of todoIds) {
+              persistTodoDelete(todoId)
+            }
+          }
         }
 
         return copiedWithParent.length

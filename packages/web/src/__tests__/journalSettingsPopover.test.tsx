@@ -7,17 +7,18 @@ afterEach(() => {
   cleanup()
 })
 
+const defaultProps = {
+  appName: "Journal Todo",
+  authorName: "BarrySong97",
+  version: "0.1.11",
+  sqlitePath: "/Users/test/.journal-todo/journal.db",
+  rolloverIsMove: false,
+  onRolloverModeChange: vi.fn(),
+}
+
 describe("JournalSettingsPopover", () => {
   it("renders settings trigger", () => {
-    render(
-      <JournalSettingsPopover
-        appName="Journal Todo"
-        authorName="BarrySong97"
-        version="0.1.11"
-        sqlitePath="/Users/test/.journal-todo/journal.db"
-      />
-    )
-
+    render(<JournalSettingsPopover {...defaultProps} />)
     expect(screen.getByTitle("Settings")).toBeTruthy()
   })
 
@@ -27,10 +28,7 @@ describe("JournalSettingsPopover", () => {
 
     render(
       <JournalSettingsPopover
-        appName="Journal Todo"
-        authorName="BarrySong97"
-        version="0.1.11"
-        sqlitePath="/Users/test/.journal-todo/journal.db"
+        {...defaultProps}
         onRevealSqlitePath={onRevealSqlitePath}
         onImportSqlitePath={onImportSqlitePath}
       />
@@ -65,8 +63,7 @@ describe("JournalSettingsPopover", () => {
   it("hides version line when version is null", () => {
     render(
       <JournalSettingsPopover
-        appName="Journal Todo"
-        authorName="BarrySong97"
+        {...defaultProps}
         version={null}
         sqlitePath={null}
       />
@@ -77,5 +74,51 @@ describe("JournalSettingsPopover", () => {
     expect(screen.queryByText("Version")).toBeNull()
     expect(screen.getByText("SQLite path")).toBeTruthy()
     expect(screen.getByText("Unavailable")).toBeTruthy()
+  })
+
+  it("shows Roll over row with Copy label when rolloverIsMove is false", () => {
+    render(<JournalSettingsPopover {...defaultProps} rolloverIsMove={false} />)
+    fireEvent.click(screen.getByTitle("Settings"))
+    expect(screen.getByText("Roll over")).toBeTruthy()
+    expect(screen.getByText("Copy")).toBeTruthy()
+  })
+
+  it("shows Move label when rolloverIsMove is true", () => {
+    render(<JournalSettingsPopover {...defaultProps} rolloverIsMove={true} />)
+    fireEvent.click(screen.getByTitle("Settings"))
+    expect(screen.getByText("Roll over")).toBeTruthy()
+    expect(screen.getByText("Move")).toBeTruthy()
+  })
+
+  it("calls onRolloverModeChange(true) when switch is toggled on", () => {
+    const onRolloverModeChange = vi.fn()
+    render(
+      <JournalSettingsPopover
+        {...defaultProps}
+        rolloverIsMove={false}
+        onRolloverModeChange={onRolloverModeChange}
+      />
+    )
+    fireEvent.click(screen.getByTitle("Settings"))
+    const switchInput = screen.getByRole("checkbox")
+    // Click the wrapping label to trigger the checkbox change
+    fireEvent.click(switchInput.closest("label")!)
+    expect(onRolloverModeChange).toHaveBeenCalledWith(true)
+  })
+
+  it("calls onRolloverModeChange(false) when switch is toggled off", () => {
+    const onRolloverModeChange = vi.fn()
+    render(
+      <JournalSettingsPopover
+        {...defaultProps}
+        rolloverIsMove={true}
+        onRolloverModeChange={onRolloverModeChange}
+      />
+    )
+    fireEvent.click(screen.getByTitle("Settings"))
+    const switchInput = screen.getByRole("checkbox")
+    // Click the wrapping label to trigger the checkbox change
+    fireEvent.click(switchInput.closest("label")!)
+    expect(onRolloverModeChange).toHaveBeenCalledWith(false)
   })
 })

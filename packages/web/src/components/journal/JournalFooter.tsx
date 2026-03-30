@@ -61,6 +61,8 @@ interface JournalFooterProps {
   className?: string
   isRolloverOpen?: boolean
   onOpenRollover?: () => void
+  rolloverIsMove: boolean
+  onRolloverModeChange: (isMove: boolean) => void
 }
 
 const nameSchema = z.object({
@@ -191,6 +193,8 @@ export function JournalFooter({
   className,
   isRolloverOpen,
   onOpenRollover,
+  rolloverIsMove,
+  onRolloverModeChange,
 }: JournalFooterProps) {
   const {
     workspaces,
@@ -708,6 +712,8 @@ export function JournalFooter({
             authorName={APP_AUTHOR}
             version={appVersion}
             sqlitePath={sqlitePath}
+            rolloverIsMove={rolloverIsMove}
+            onRolloverModeChange={onRolloverModeChange}
             onRevealSqlitePath={handleRevealSqlitePath}
             onImportSqlitePath={handleImportSqlitePath}
           />

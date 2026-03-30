@@ -10,6 +10,7 @@ import {
   PopoverHeader,
   PopoverTitle,
   PopoverTrigger,
+  Switch,
 } from "@journal-todo/ui"
 import { getFileNameFromPath } from "@/lib/appInfo"
 import { ShortcutList } from "./ShortcutList"
@@ -19,6 +20,8 @@ export interface JournalSettingsPopoverProps {
   authorName: string
   version: string | null
   sqlitePath: string | null
+  rolloverIsMove: boolean
+  onRolloverModeChange: (isMove: boolean) => void
   onRevealSqlitePath?: () => void | Promise<void>
   onImportSqlitePath?: () => void | Promise<void>
 }
@@ -28,6 +31,8 @@ export function JournalSettingsPopover({
   authorName,
   version,
   sqlitePath,
+  rolloverIsMove,
+  onRolloverModeChange,
   onRevealSqlitePath,
   onImportSqlitePath,
 }: JournalSettingsPopoverProps) {
@@ -61,6 +66,18 @@ export function JournalSettingsPopover({
               <span>v{version}</span>
             </div>
           )}
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-muted-foreground">Roll over</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {rolloverIsMove ? "Move" : "Copy"}
+              </span>
+              <Switch
+                checked={rolloverIsMove}
+                onCheckedChange={onRolloverModeChange}
+              />
+            </div>
+          </div>
           <div className="flex items-start justify-between gap-2 text-sm">
             <span className="shrink-0 text-muted-foreground">SQLite path</span>
             {sqliteFileName ? (

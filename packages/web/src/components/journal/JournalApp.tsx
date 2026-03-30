@@ -16,22 +16,25 @@ import {
   SimpleToast,
 } from "@journal-todo/ui"
 import { useJournal } from "@/hooks/useJournal"
+import { useRolloverMode } from "@/hooks/useRolloverMode"
 
 export function JournalApp() {
   const {
     rollOverTodosToToday,
   } = useJournal()
 
+  const { isMove: rolloverIsMove, setIsMove: setRolloverIsMove } = useRolloverMode()
   const [isRolloverOpen, setIsRolloverOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
   const [toastOpen, setToastOpen] = useState(false)
 
   const handleRollover = () => {
-    const copiedCount = rollOverTodosToToday()
+    const count = rollOverTodosToToday(rolloverIsMove ? "move" : "copy")
+    const verb = rolloverIsMove ? "Moved" : "Copied"
     const message =
-      copiedCount > 0
-        ? `Copied ${copiedCount} unfinished todo${copiedCount > 1 ? "s" : ""} to today.`
-        : "No unfinished todos to copy."
+      count > 0
+        ? `${verb} ${count} unfinished todo${count > 1 ? "s" : ""} to today.`
+        : "No unfinished todos to roll over."
     setToastMessage(message)
     setToastOpen(true)
     setIsRolloverOpen(false)
@@ -53,14 +56,16 @@ export function JournalApp() {
       <AlertDialog open={isRolloverOpen} onOpenChange={setIsRolloverOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>流转未完成的 To-do</AlertDialogTitle>
+            <AlertDialogTitle>Roll over unfinished todos</AlertDialogTitle>
             <AlertDialogDescription>
-              这会把以前日期中未完成的 To-do 复制到今天。
+              {rolloverIsMove
+                ? "Unfinished todos from previous dates will be moved to today and removed from their original dates."
+                : "Unfinished todos from previous dates will be copied to today."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRollover}>确认</AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRollover}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -76,6 +81,8 @@ export function JournalApp() {
       <JournalFooter
         isRolloverOpen={isRolloverOpen}
         onOpenRollover={() => setIsRolloverOpen(true)}
+        rolloverIsMove={rolloverIsMove}
+        onRolloverModeChange={setRolloverIsMove}
       />
 
       <SimpleToast open={toastOpen} message={toastMessage} />
