@@ -1,6 +1,112 @@
 {
-  "generatedAt": "2026-03-01T05:39:06.538Z",
+  "generatedAt": "2026-03-30T02:07:01.090Z",
   "releases": [
+    {
+      "version": "v0.1.18",
+      "date": "2026-03-30T09:55:52+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.18"
+        },
+        {
+          "type": "new",
+          "text": "add rollover mode setting (copy vs move) with shared state fix"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.17",
+      "date": "2026-03-28T14:15:01+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.17"
+        },
+        {
+          "type": "fix",
+          "text": "auto-update check never runs due to missing process global in browser"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.16",
+      "date": "2026-03-28T13:02:39+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.16"
+        },
+        {
+          "type": "new",
+          "text": "refactor todo rollover from move to copy and extract todoFilters utility"
+        },
+        {
+          "type": "new",
+          "text": "enhance release process and AppTSX for better todo management"
+        },
+        {
+          "type": "other",
+          "text": "bump version to v0.1.15 and update download links"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.15",
+      "date": "2026-03-09T14:32:07+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.15"
+        },
+        {
+          "type": "other",
+          "text": "bump version to v0.1.14 and update release details"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.14",
+      "date": "2026-03-09T14:13:47+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.14"
+        },
+        {
+          "type": "new",
+          "text": "add Drawer and TodoCalendar components to UI library"
+        },
+        {
+          "type": "other",
+          "text": "add comprehensive agent instructions and package details"
+        },
+        {
+          "type": "new",
+          "text": "add database import/switch and refactor DB path resolution"
+        },
+        {
+          "type": "new",
+          "text": "improve Enter key behavior on parent todos and persist collapse state"
+        },
+        {
+          "type": "other",
+          "text": "update AGENTS documentation for all packages and enhance website components"
+        },
+        {
+          "type": "new",
+          "text": "enhance AppTSX and HomeEmbeddedApp for improved loading experience"
+        },
+        {
+          "type": "other",
+          "text": "update README and add Vercel configuration for website deployment"
+        },
+        {
+          "type": "other",
+          "text": "bump version to v0.1.13 and update release process"
+        }
+      ]
+    },
     {
       "version": "v0.1.13",
       "date": "2026-03-01T11:27:27+08:00",

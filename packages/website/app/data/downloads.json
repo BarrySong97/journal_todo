@@ -1,19 +1,19 @@
 {
-  "version": "0.1.15",
-  "generatedAt": "2026-03-01T00:00:00.000Z",
+  "version": "0.1.18",
+  "generatedAt": "2026-03-30T02:06:29.430Z",
   "groups": [
     {
       "category": "macOS",
       "items": [
         {
           "name": "Apple Silicon",
-          "assetName": "JournalTodo_0.1.13_aarch64.dmg",
-          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.13/JournalTodo_0.1.15_aarch64.dmg"
+          "assetName": "JournalTodo_0.1.18_aarch64.dmg",
+          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.18/JournalTodo_0.1.18_aarch64.dmg"
         },
         {
           "name": "Intel",
-          "assetName": "JournalTodo_0.1.13_x64.dmg",
-          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.13/JournalTodo_0.1.15_x64.dmg"
+          "assetName": "JournalTodo_0.1.18_x64.dmg",
+          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.18/JournalTodo_0.1.18_x64.dmg"
         }
       ]
     },
@@ -22,8 +22,8 @@
       "items": [
         {
           "name": "Windows 10/11 (64-bit)",
-          "assetName": "JournalTodo_0.1.13_x64-setup.exe",
-          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.13/JournalTodo_0.1.15_x64-setup.exe"
+          "assetName": "JournalTodo_0.1.18_x64-setup.exe",
+          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.18/JournalTodo_0.1.18_x64-setup.exe"
         }
       ]
     }
