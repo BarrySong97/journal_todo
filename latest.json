@@ -1,15 +1,15 @@
 {
-  "version": "0.1.18",
+  "version": "0.1.19",
   "notes": "",
-  "pub_date": "2026-03-30T02:06:12Z",
+  "pub_date": "2026-03-31T02:41:16Z",
   "platforms": {
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjk0MUljK0hDTWZuVVUwWlhHTEVWV0pLNDlCbkJHdDhUdWpWS2lDNFRmQXNPeDlTTUkwTkd2NUUyQkZnbk1MNTJmdWVyZDE3UTk0dVJKbFkzNGE3MGdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0ODM2MjgzCWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5negpxWFhQNFlvT1VDSVZyK21zNnFjZ0E0R0pBMHJXTkdmaGVFaFROZi9RWlJ4V2FNU08xZnA2dDFoVlN3NGxaS3FUQnlKNUl4eGt1Q1h0blZKcWxIb1REZz09Cg==",
-      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.18/JournalTodo_0.1.18_x64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjdVOFNjanNwRzg2QldTaWo4VXpjZmgybU9tdit1NEhCNGFIZjgybGRhQ3lmTkI0SEpMQ1pleHM5VXlmT0VPbWY2UWJhblFGcTRFaTFUeE1IUEZTUlFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0OTI0ODA1CWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5negpvbE8rR21pZlVDcjdGbFB1ODJsYnROZDhnVGVtbTNnaXBwZHgwWXV1c0RtVVNuT0JjN3Bid3UrOGpwcHZCc1VDRzlGUk9lMWMrZG1KWXVxV3doTmdBdz09Cg==",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.19/JournalTodo_0.1.19_x64.app.tar.gz"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjVBT1Z3L2ZMaFhodzVFZ0szQ2pja0Rpc1dvdzFGL1RraUFTaVdYdWl4UncyeWdQMkVteWVXVUhoSUZjT2FHM1ZCZVkvaG9yTmx6aHc5UG9JcmZKalFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0ODM2MzU3CWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5negpLSkE5RzZZdENXd1dDaGhrWnU5bm40UkprSlFlM2d1NGRIemN4VlphV2x1MS9SdTlYS3FnT1B0TUFQakFiZUwwbWk3c1NQUnIrWXVabnFUNDJWdm1EUT09Cg==",
-      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.18/JournalTodo_0.1.18_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTR1ZJYTB4Q28zcjZiM3RqUzJxcXp4M2RnV29iV2RTMEVlMFVTQ2tUSERvekk3NFB4SXM1YXdvZVV2SmprcTFwUi84SlF4U0w0cVF3MzFNOTBtZnpHMnBOMU83ZFhQU0FvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc0OTI0ODUzCWZpbGU6Sm91cm5hbFRvZG8uYXBwLnRhci5negpvK0h5TERmb1RSOW9WaFU1SVFsTmZIenRMeVJsbXVCbmhNZkJwY3g2bkVVSjNtUEw0RXpyRmtsSEtlNlNjLytKcnNDMmxVcG5rcnRHYWMrOTlOZEZBZz09Cg==",
+      "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.19/JournalTodo_0.1.19_aarch64.app.tar.gz"
     }
   }
 }
