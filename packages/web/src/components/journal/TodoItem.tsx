@@ -14,13 +14,14 @@ import {
   type ChangeEvent,
   type HTMLAttributes,
   type ClipboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react"
 import { Checkbox, cn } from "@journal-todo/ui"
 import { ChevronRight } from "lucide-react"
 import type { FlattenedTodo } from "./todoTreeUtils"
 import { INDENTATION_WIDTH } from "./todoTreeUtils"
 
-export interface TodoItemProps extends Omit<HTMLAttributes<HTMLDivElement>, "id" | "onFocus" | "onKeyDown" | "onToggle"> {
+export interface TodoItemProps extends Omit<HTMLAttributes<HTMLDivElement>, "id" | "onFocus" | "onKeyDown" | "onToggle" | "onSelect"> {
   todo: FlattenedTodo
   depth: number
   ghost?: boolean
@@ -39,6 +40,7 @@ export interface TodoItemProps extends Omit<HTMLAttributes<HTMLDivElement>, "id"
   onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => void
   onPasteTodo: (todoId: string, text: string, selectionStart: number, selectionEnd: number) => boolean
   onFocus: (todoId: string) => void
+  onSelect?: (todoId: string, shiftKey: boolean) => void
   inputRef: (todoId: string, element: HTMLTextAreaElement | null) => void
 }
 
@@ -64,6 +66,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
       onKeyDown,
       onPasteTodo,
       onFocus,
+      onSelect,
       inputRef,
       ...props
     },
@@ -111,6 +114,27 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
       onToggleCollapse?.(todo.id)
     }
 
+    const handleWrapperClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+      if (!e.shiftKey || !onSelect) return
+      e.preventDefault()
+      onSelect(todo.id, true)
+    }
+
+    const handleTextareaMouseDown = (e: ReactMouseEvent<HTMLTextAreaElement>) => {
+      if (e.shiftKey && onSelect) {
+        e.preventDefault()
+        onSelect(todo.id, true)
+      }
+    }
+
+    const handleCheckboxMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+      if (e.shiftKey && onSelect) {
+        e.preventDefault()
+        e.stopPropagation()
+        onSelect(todo.id, true)
+      }
+    }
+
     const handleRef = (element: HTMLTextAreaElement | null) => {
       textareaRef.current = element
       inputRef(todo.id, element)
@@ -134,6 +158,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
           marginBottom: -1,
         } as CSSProperties}
         data-todo-id={todo.id}
+        onClick={handleWrapperClick}
         className={cn(
           "box-border list-none",
           // Clone styling (for DragOverlay)
@@ -188,7 +213,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
               </button>
 
               <div className="flex items-start gap-2 flex-1 ml-2">
-                <div className="pt-0.5 flex-shrink-0">
+                <div className="pt-0.5 flex-shrink-0" onMouseDown={handleCheckboxMouseDown}>
                   <Checkbox
                     checked={todo.status === "done"}
                     onCheckedChange={handleToggle}
@@ -219,6 +244,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
                     onFocus={handleFocus}
+                    onMouseDown={handleTextareaMouseDown}
                     rows={1}
                     placeholder="Type your todo here..."
                     className={cn(

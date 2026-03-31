@@ -23,3 +23,15 @@ export const getPlatform = (): "tauri" | "browser" | "server" => {
   }
   return isTauri() ? "tauri" : "browser";
 };
+
+/**
+ * Check if the current platform is macOS
+ */
+export const isMac = (): boolean => {
+  if (typeof navigator === "undefined") return false
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string } }
+  const platform = (
+    nav.userAgentData?.platform ?? navigator.platform ?? ""
+  ).toLowerCase()
+  return platform.includes("mac")
+}

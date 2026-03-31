@@ -30,6 +30,7 @@ interface SortableTodoItemProps {
   onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => void
   onPasteTodo: (todoId: string, text: string, selectionStart: number, selectionEnd: number) => boolean
   onFocus: (todoId: string) => void
+  onSelect?: (todoId: string, shiftKey: boolean) => void
   inputRef: (todoId: string, element: HTMLTextAreaElement | null) => void
 }
 
@@ -49,6 +50,7 @@ export function SortableTodoItem({
   onKeyDown,
   onPasteTodo,
   onFocus,
+  onSelect,
   inputRef,
 }: SortableTodoItemProps) {
   const {
@@ -95,6 +97,7 @@ export function SortableTodoItem({
       onKeyDown={onKeyDown}
       onPasteTodo={onPasteTodo}
       onFocus={onFocus}
+      onSelect={onSelect}
       inputRef={inputRef}
     />
   )

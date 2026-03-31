@@ -42,20 +42,9 @@ import { useJournal } from "@/hooks/useJournal"
 import { useTodoFocus } from "@/hooks/useTodoFocus"
 import { useTodoKeyboard } from "@/hooks/useTodoKeyboard"
 import { SimpleToast } from "@journal-todo/ui"
+import { toast } from "sonner"
 
-interface SelectionRect {
-  left: number
-  top: number
-  right: number
-  bottom: number
-  width: number
-  height: number
-}
-
-interface TodoListProps {
-  selectionRect?: SelectionRect | null
-  onClearSelection?: () => void
-}
+interface TodoListProps {}
 
 const measuring = {
   droppable: {
@@ -66,7 +55,7 @@ const measuring = {
 const COLLAPSED_STORAGE_KEY = "journal-collapsed-todos"
 
 export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
-  function TodoList({ selectionRect, onClearSelection }, ref) {
+  function TodoList(_props, ref) {
     const {
       currentPage,
       currentWorkspaceId,
@@ -92,6 +81,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
     // UI state
     const [activeTodoId, setActiveTodoId] = useState<string | null>(null)
     const [selectedTodoIds, setSelectedTodoIds] = useState<string[]>([])
+    const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null)
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
       try {
         const stored = localStorage.getItem(COLLAPSED_STORAGE_KEY)
@@ -185,6 +175,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       setDragActiveId(String(active.id))
       setDragOverId(String(active.id))
       setSelectedTodoIds([])
+      setSelectionAnchorId(null)
       document.body.style.setProperty("cursor", "grabbing")
     }, [])
 
@@ -233,49 +224,39 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
     const clearSelection = useCallback(() => {
       setSelectedTodoIds([])
-      onClearSelection?.()
-    }, [onClearSelection])
+      setSelectionAnchorId(null)
+    }, [])
 
-    const updateSelectionFromRect = useCallback(
-      (rect: { left: number; right: number; top: number; bottom: number }) => {
-        if (!listRef.current) return
-        const elements = listRef.current.querySelectorAll<HTMLElement>("[data-todo-id]")
-        const hits = new Set<string>()
+    const handleSelectTodo = useCallback(
+      (todoId: string, shiftKey: boolean) => {
+        if (!shiftKey) return
 
-        elements.forEach((element) => {
-          const bounds = element.getBoundingClientRect()
-          const intersects =
-            bounds.right >= rect.left &&
-            bounds.left <= rect.right &&
-            bounds.bottom >= rect.top &&
-            bounds.top <= rect.bottom
+        if (selectedTodoIds.length === 0 || selectionAnchorId === null) {
+          setSelectionAnchorId(todoId)
+          setSelectedTodoIds([todoId])
+        } else {
+          const anchorIndex = visibleTodos.findIndex((t) => t.id === selectionAnchorId)
+          const clickedIndex = visibleTodos.findIndex((t) => t.id === todoId)
 
-          if (intersects) {
-            const id = element.dataset.todoId
-            if (id) hits.add(id)
+          if (anchorIndex === -1 || clickedIndex === -1) {
+            setSelectionAnchorId(todoId)
+            setSelectedTodoIds([todoId])
+            return
           }
-        })
 
-        const ordered = visibleTodos
-          .filter((todo) => hits.has(todo.id))
-          .map((todo) => todo.id)
-
-        setSelectedTodoIds(ordered)
+          const start = Math.min(anchorIndex, clickedIndex)
+          const end = Math.max(anchorIndex, clickedIndex)
+          const rangeIds = visibleTodos.slice(start, end + 1).map((t) => t.id)
+          setSelectedTodoIds(rangeIds)
+        }
       },
-      [visibleTodos]
+      [selectedTodoIds, selectionAnchorId, visibleTodos]
     )
-
-    // Update selection when selectionRect changes
-    useEffect(() => {
-      if (selectionRect) {
-        updateSelectionFromRect(selectionRect)
-      }
-    }, [selectionRect, updateSelectionFromRect])
 
     const copySelectedTodos = useCallback(() => {
       const INDENT = "  "
-      const texts = visibleTodos
-        .filter((todo) => selectedTodoSet.has(todo.id))
+      const selected = visibleTodos.filter((todo) => selectedTodoSet.has(todo.id))
+      const texts = selected
         .map((todo) => `${INDENT.repeat(todo.level)}${todo.text}`)
         .filter((text) => text.trim().length > 0)
 
@@ -286,20 +267,28 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
         try {
           if (navigator.clipboard?.writeText) {
             await navigator.clipboard.writeText(payload)
-            return
+          } else {
+            const textarea = document.createElement("textarea")
+            textarea.value = payload
+            textarea.style.position = "fixed"
+            textarea.style.opacity = "0"
+            document.body.appendChild(textarea)
+            textarea.select()
+            document.execCommand("copy")
+            document.body.removeChild(textarea)
           }
         } catch {
-          // fallback
+          const textarea = document.createElement("textarea")
+          textarea.value = payload
+          textarea.style.position = "fixed"
+          textarea.style.opacity = "0"
+          document.body.appendChild(textarea)
+          textarea.select()
+          document.execCommand("copy")
+          document.body.removeChild(textarea)
         }
 
-        const textarea = document.createElement("textarea")
-        textarea.value = payload
-        textarea.style.position = "fixed"
-        textarea.style.opacity = "0"
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand("copy")
-        document.body.removeChild(textarea)
+        toast.success(`Copied ${selected.length} item${selected.length > 1 ? "s" : ""}`)
       }
 
       void writeText()
@@ -395,6 +384,19 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       return () => window.removeEventListener("keydown", handleCopy)
     }, [selectedTodoIds.length, copySelectedTodos])
 
+    // Escape to clear selection
+    useEffect(() => {
+      const handleEscape = (event: KeyboardEvent) => {
+        if (event.key === "Escape" && selectedTodoIds.length > 0) {
+          event.preventDefault()
+          clearSelection()
+        }
+      }
+
+      window.addEventListener("keydown", handleEscape)
+      return () => window.removeEventListener("keydown", handleEscape)
+    }, [selectedTodoIds.length, clearSelection])
+
     useEffect(() => {
       const handleToggleTodo = (event: Event) => {
         const customEvent = event as CustomEvent<{ todoId: string }>
@@ -470,6 +472,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
                 onKeyDown={handleKeyDown}
                 onPasteTodo={handlePasteTodo}
                 onFocus={handleFocus}
+                onSelect={handleSelectTodo}
                 inputRef={setTodoRef}
               />
             ))}
