@@ -8,6 +8,10 @@ import tailwindcss from "@tailwindcss/vite";
 const host = process.env.TAURI_DEV_HOST;
 // @ts-expect-error process is a nodejs global
 const isTauri = !!process.env.TAURI_ENV_PLATFORM;
+// @ts-expect-error process is a nodejs global
+const webPort = Number(process.env.WEB_PORT || "1420");
+// @ts-expect-error process is a nodejs global
+const webHmrPort = Number(process.env.WEB_HMR_PORT || String(webPort + 1));
 const packageJson = JSON.parse(
   readFileSync(path.resolve(__dirname, "package.json"), "utf-8")
 ) as { version?: string };
@@ -28,14 +32,14 @@ export default defineConfig(async () => ({
   clearScreen: !isTauri,
 
   server: {
-    port: 1420,
+    port: webPort,
     strictPort: true,
     host: host || false,
     hmr: host
       ? {
           protocol: "ws",
           host,
-          port: 1421,
+          port: webHmrPort,
         }
       : undefined,
     watch: {
