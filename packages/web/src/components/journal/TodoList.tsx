@@ -41,6 +41,15 @@ import {
 import { useJournal } from "@/hooks/useJournal"
 import { useTodoFocus } from "@/hooks/useTodoFocus"
 import { useTodoKeyboard } from "@/hooks/useTodoKeyboard"
+import {
+  getNextTodoIdAfterBulkDelete,
+  getTodoShortcutPlatform,
+  hasDocumentTextSelection,
+  hasNativeTextSelection,
+  isSelectedTodoCopyShortcut,
+  isSelectedTodoCutShortcut,
+  isSelectedTodoDeleteShortcut,
+} from "@/lib/utils/multiSelectShortcuts"
 import { SimpleToast } from "@journal-todo/ui"
 import { toast } from "sonner"
 
@@ -99,6 +108,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
     const [toastMessage, setToastMessage] = useState("")
     const [toastOpen, setToastOpen] = useState(false)
+    const shortcutPlatform = getTodoShortcutPlatform()
 
     // Drag state (following official SortableTree pattern)
     const [dragActiveId, setDragActiveId] = useState<string | null>(null)
@@ -142,6 +152,10 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
       return visibleItems
     }, [flattenedTodos, collapsedIds, dragActiveId])
+    const selectedVisibleTodos = useMemo(
+      () => visibleTodos.filter((todo) => selectedTodoSet.has(todo.id)),
+      [visibleTodos, selectedTodoSet]
+    )
 
     // Calculate projection using official algorithm
     const projected = useMemo(() => {
@@ -253,46 +267,107 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       [selectedTodoIds, selectionAnchorId, visibleTodos]
     )
 
-    const copySelectedTodos = useCallback(() => {
+    const writeTextToClipboard = useCallback(async (payload: string) => {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(payload)
+          return true
+        }
+      } catch {
+        // Fall back to execCommand below.
+      }
+
+      const textarea = document.createElement("textarea")
+      textarea.value = payload
+      textarea.style.position = "fixed"
+      textarea.style.opacity = "0"
+      document.body.appendChild(textarea)
+      textarea.select()
+      const copied = document.execCommand("copy")
+      document.body.removeChild(textarea)
+      return copied
+    }, [])
+
+    const getSelectedTodoPayload = useCallback(() => {
       const INDENT = "  "
-      const selected = visibleTodos.filter((todo) => selectedTodoSet.has(todo.id))
-      const texts = selected
+      const texts = selectedVisibleTodos
         .map((todo) => `${INDENT.repeat(todo.level)}${todo.text}`)
         .filter((text) => text.trim().length > 0)
 
-      if (texts.length === 0) return
+      if (texts.length === 0) return null
 
-      const payload = texts.join("\n")
-      const writeText = async () => {
-        try {
-          if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(payload)
-          } else {
-            const textarea = document.createElement("textarea")
-            textarea.value = payload
-            textarea.style.position = "fixed"
-            textarea.style.opacity = "0"
-            document.body.appendChild(textarea)
-            textarea.select()
-            document.execCommand("copy")
-            document.body.removeChild(textarea)
-          }
-        } catch {
-          const textarea = document.createElement("textarea")
-          textarea.value = payload
-          textarea.style.position = "fixed"
-          textarea.style.opacity = "0"
-          document.body.appendChild(textarea)
-          textarea.select()
-          document.execCommand("copy")
-          document.body.removeChild(textarea)
-        }
+      return texts.join("\n")
+    }, [selectedVisibleTodos])
 
-        toast.success(`Copied ${selected.length} item${selected.length > 1 ? "s" : ""}`)
+    const copySelectedTodoText = useCallback(async (showToast = true) => {
+      const payload = getSelectedTodoPayload()
+      if (!payload) return false
+
+      const copied = await writeTextToClipboard(payload)
+      if (!copied) {
+        toast.error("Failed to copy selected items")
+        return false
       }
 
-      void writeText()
-    }, [visibleTodos, selectedTodoSet])
+      if (showToast) {
+        toast.success(
+          `Copied ${selectedVisibleTodos.length} item${selectedVisibleTodos.length > 1 ? "s" : ""}`
+        )
+      }
+      return true
+    }, [getSelectedTodoPayload, selectedVisibleTodos.length, writeTextToClipboard])
+
+    const copySelectedTodos = useCallback(() => {
+      void copySelectedTodoText(true)
+    }, [copySelectedTodoText])
+
+    const removeSelectedTodos = useCallback((showToast = true) => {
+      if (selectedVisibleTodos.length === 0) return false
+
+      const selectedIds = new Set(selectedVisibleTodos.map((todo) => todo.id))
+      const nextTodoId = getNextTodoIdAfterBulkDelete(visibleTodos, selectedIds)
+
+      selectedVisibleTodos.forEach((todo) => {
+        deleteTodo(todo.id)
+      })
+
+      clearSelection()
+
+      if (nextTodoId) {
+        setActiveTodoId(nextTodoId)
+        setTimeout(() => {
+          focusTodo(nextTodoId)
+        }, 0)
+      } else {
+        setActiveTodoId(null)
+      }
+
+      if (showToast) {
+        toast.success(
+          `Deleted ${selectedVisibleTodos.length} item${selectedVisibleTodos.length > 1 ? "s" : ""}`
+        )
+      }
+
+      return true
+    }, [
+      clearSelection,
+      deleteTodo,
+      focusTodo,
+      selectedVisibleTodos,
+      setActiveTodoId,
+      visibleTodos,
+    ])
+
+    const cutSelectedTodos = useCallback(async () => {
+      if (selectedVisibleTodos.length === 0) return false
+
+      const copied = await copySelectedTodoText(false)
+      if (!copied) return false
+
+      removeSelectedTodos(false)
+      toast.success(`Cut ${selectedVisibleTodos.length} item${selectedVisibleTodos.length > 1 ? "s" : ""}`)
+      return true
+    }, [copySelectedTodoText, removeSelectedTodos, selectedVisibleTodos.length])
 
     // Keyboard handling
     const { handleKeyDown } = useTodoKeyboard({
@@ -360,29 +435,46 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       clearSelection()
     }
 
-    // Global keyboard handlers
     useEffect(() => {
-      const handleCopy = (event: KeyboardEvent) => {
-        if (event.defaultPrevented) return
-        if (!event.ctrlKey && !event.metaKey) return
-        if (event.key.toLowerCase() !== "c") return
-        if (selectedTodoIds.length === 0) return
+      const handleMultiSelectShortcut = (event: KeyboardEvent) => {
+        if (selectedVisibleTodos.length === 0) return
 
-        if (document.activeElement instanceof HTMLTextAreaElement) {
-          const input = document.activeElement
-          if (input.selectionStart !== input.selectionEnd) return
+        const hasTextSelection =
+          hasNativeTextSelection(event.target) || hasDocumentTextSelection()
+
+        if (isSelectedTodoCopyShortcut(event, shortcutPlatform)) {
+          if (hasTextSelection) return
+          event.preventDefault()
+          event.stopPropagation()
+          void copySelectedTodoText(true)
+          return
         }
 
-        const selectionText = window.getSelection()?.toString() ?? ""
-        if (selectionText.length > 0) return
+        if (isSelectedTodoCutShortcut(event, shortcutPlatform)) {
+          if (hasTextSelection) return
+          event.preventDefault()
+          event.stopPropagation()
+          void cutSelectedTodos()
+          return
+        }
 
-        event.preventDefault()
-        copySelectedTodos()
+        if (isSelectedTodoDeleteShortcut(event, shortcutPlatform)) {
+          if (hasTextSelection) return
+          event.preventDefault()
+          event.stopPropagation()
+          removeSelectedTodos(true)
+        }
       }
 
-      window.addEventListener("keydown", handleCopy)
-      return () => window.removeEventListener("keydown", handleCopy)
-    }, [selectedTodoIds.length, copySelectedTodos])
+      window.addEventListener("keydown", handleMultiSelectShortcut, true)
+      return () => window.removeEventListener("keydown", handleMultiSelectShortcut, true)
+    }, [
+      copySelectedTodoText,
+      cutSelectedTodos,
+      removeSelectedTodos,
+      selectedVisibleTodos.length,
+      shortcutPlatform,
+    ])
 
     // Escape to clear selection
     useEffect(() => {

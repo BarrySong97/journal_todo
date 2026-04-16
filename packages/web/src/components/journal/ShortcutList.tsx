@@ -1,8 +1,14 @@
 import { Kbd } from "@journal-todo/ui"
-import { isMac } from "@journal-todo/shared"
+import {
+  getTodoDeleteKeyLabel,
+  getTodoModifierLabel,
+  getTodoShortcutPlatform,
+} from "@/lib/utils/multiSelectShortcuts"
 
 export function ShortcutList() {
-  const mod = isMac() ? "⌘" : "Ctrl"
+  const shortcutPlatform = getTodoShortcutPlatform()
+  const mod = getTodoModifierLabel(shortcutPlatform)
+  const deleteKey = getTodoDeleteKeyLabel(shortcutPlatform)
 
   return (
     <div className="mt-2 grid gap-2">
@@ -66,6 +72,19 @@ export function ShortcutList() {
         <div className="flex items-center gap-1">
           <Kbd>{mod}</Kbd>
           <Kbd>C</Kbd>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-muted-foreground">Cut selected</span>
+        <div className="flex items-center gap-1">
+          <Kbd>{mod}</Kbd>
+          <Kbd>X</Kbd>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-muted-foreground">Delete selected</span>
+        <div className="flex items-center gap-1">
+          <Kbd>{deleteKey}</Kbd>
         </div>
       </div>
       <div className="flex items-center justify-between gap-2 text-sm">

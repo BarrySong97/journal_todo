@@ -47,6 +47,8 @@ describe("JournalSettingsPopover", () => {
     expect(screen.getByRole("button", { name: "journal.db" })).toBeTruthy()
     expect(screen.getByText("Command palette")).toBeTruthy()
     expect(screen.getByText("Switch workspace")).toBeTruthy()
+    expect(screen.getByText("Cut selected")).toBeTruthy()
+    expect(screen.getByText("Delete selected")).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "journal.db" }))
     expect(screen.getByText("Open current path")).toBeTruthy()
