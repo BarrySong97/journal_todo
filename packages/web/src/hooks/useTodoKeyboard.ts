@@ -1,5 +1,9 @@
 import { useCallback, type KeyboardEvent } from "react"
 import type { TodoItem } from "@/lib/types/journal"
+import {
+  getTodoShortcutPlatform,
+  isSelectedTodoCopyShortcut,
+} from "@/lib/utils/multiSelectShortcuts"
 
 interface UseTodoKeyboardProps {
   todos: TodoItem[]
@@ -50,6 +54,7 @@ export function useTodoKeyboard({
 }: UseTodoKeyboardProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => {
+      const shortcutPlatform = getTodoShortcutPlatform()
       const currentIndex = todos.findIndex((todo) => todo.id === todoId)
       const mergeToPreviousSibling = (currentText: string) => {
         if (currentIndex <= 0) return false
@@ -90,16 +95,15 @@ export function useTodoKeyboard({
         return true
       }
 
+      if (selectedTodoIds.length > 0 && isSelectedTodoCopyShortcut(e, shortcutPlatform)) {
+        const input = e.target as HTMLTextAreaElement
+        if (input.selectionStart !== input.selectionEnd) return
+        e.preventDefault()
+        copySelectedTodos()
+        return
+      }
+
       switch (e.key) {
-        case "c": {
-          if ((e.metaKey || e.ctrlKey) && selectedTodoIds.length > 0) {
-            const input = e.target as HTMLTextAreaElement
-            if (input.selectionStart !== input.selectionEnd) break
-            e.preventDefault()
-            copySelectedTodos()
-          }
-          break
-        }
         case "ArrowUp":
           e.preventDefault()
           if (e.altKey && e.shiftKey) {
