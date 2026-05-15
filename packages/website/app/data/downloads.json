@@ -1,19 +1,19 @@
 {
-  "version": "0.1.19",
-  "generatedAt": "2026-03-31T02:41:49.545Z",
+  "version": "0.1.20",
+  "generatedAt": "2026-04-16T07:16:00.000Z",
   "groups": [
     {
       "category": "macOS",
       "items": [
         {
           "name": "Apple Silicon",
-          "assetName": "JournalTodo_0.1.19_aarch64.dmg",
-          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.19/JournalTodo_0.1.19_aarch64.dmg"
+          "assetName": "JournalTodo_0.1.20_aarch64.dmg",
+          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.20/JournalTodo_0.1.20_aarch64.dmg"
         },
         {
           "name": "Intel",
-          "assetName": "JournalTodo_0.1.19_x64.dmg",
-          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.19/JournalTodo_0.1.19_x64.dmg"
+          "assetName": "JournalTodo_0.1.20_x64.dmg",
+          "url": "https://github.com/BarrySong97/journal_todo/releases/download/v0.1.20/JournalTodo_0.1.20_x64.dmg"
         }
       ]
     },

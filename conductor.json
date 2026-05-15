@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "setup": "pnpm install && bash scripts/setup-worktree.sh",
+    "run": "bash scripts/dev.sh",
+    "archive": "pnpm archive"
+  },
+  "runScriptMode": "nonconcurrent"
+}
