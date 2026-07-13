@@ -41,6 +41,16 @@ is encrypted, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` as Actions secrets. The
 workflow can also be rerun manually with an existing version tag from the
 Actions tab.
 
+The `release` Environment also owns the macOS signing configuration:
+
+- Variables: `APPLE_SIGNING_IDENTITY`, `APPLE_API_KEY`, `APPLE_API_ISSUER`
+- Secrets: `APPLE_CERTIFICATE` (base64 `.p12`),
+  `APPLE_CERTIFICATE_PASSWORD`, `APPLE_API_KEY_CONTENT` (`.p8` contents)
+
+The workflow imports the Developer ID certificate into an ephemeral keychain,
+recreates the App Store Connect API key on the runner, signs both macOS builds,
+and submits them for notarization.
+
 ### Retry Upload After Network Issues
 
 If upload was interrupted after tag/release already exists, run:
