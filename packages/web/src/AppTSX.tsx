@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRef } from "react"
 import type { CSSProperties } from "react"
 import { Toaster } from "@journal-todo/ui"
@@ -20,10 +20,39 @@ const DEFAULT_SEED_STORAGE_KEY = "journal-embedded-seeded-v1"
 export function AppTSX({ onReady, initialTodos = [], seedStorageKey = DEFAULT_SEED_STORAGE_KEY }: AppTSXProps) {
   const { goToToday, currentWorkspace, getCurrentPage, updateTodoText, addTodo } = useJournal()
   const seedAttemptedRef = useRef(false)
+  const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 725)
+  const [narrowView, setNarrowView] = useState<"workspace" | "important">("workspace")
+  const [splitRatio, setSplitRatio] = useState(() => {
+    const stored = typeof window !== "undefined" ? Number(localStorage.getItem("journal-important-split-ratio")) : 50
+    return Number.isFinite(stored) ? stored : 50
+  })
+  const wasWideRef = useRef(isWide)
 
   useEffect(() => {
     goToToday()
   }, [goToToday])
+
+  useEffect(() => {
+    const update = () => {
+      const width = window.innerWidth
+      const nextWide = width >= 725
+      if (wasWideRef.current && !nextWide) setNarrowView("workspace")
+      wasWideRef.current = nextWide
+      setIsWide(nextWide)
+      if (nextWide) {
+        const min = (362 / width) * 100
+        setSplitRatio((current) => Math.max(min, Math.min(100 - min, current)))
+      }
+    }
+    update()
+    window.addEventListener("resize", update)
+    return () => window.removeEventListener("resize", update)
+  }, [])
+
+  const updateSplitRatio = (ratio: number) => {
+    setSplitRatio(ratio)
+    localStorage.setItem("journal-important-split-ratio", String(ratio))
+  }
 
   useEffect(() => {
     if (seedAttemptedRef.current) return
@@ -79,9 +108,29 @@ export function AppTSX({ onReady, initialTodos = [], seedStorageKey = DEFAULT_SE
   return (
     <div className="h-full overflow-hidden flex flex-col bg-background">
       <header className="flex items-center h-9" style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
-        <DateNavigation />
+        {isWide ? (
+          <>
+            <div className="flex h-full items-center" style={{ width: `${splitRatio}%` }}>
+              <DateNavigation />
+            </div>
+            <div className="h-full w-px bg-border" />
+            <div className="flex flex-1 items-center justify-center text-xs font-medium text-muted-foreground">
+              Important
+            </div>
+          </>
+        ) : narrowView === "workspace" ? (
+          <DateNavigation />
+        ) : (
+          <div className="px-3 text-xs font-medium text-muted-foreground">Important</div>
+        )}
       </header>
-      <JournalApp />
+      <JournalApp
+        isWide={isWide}
+        narrowView={narrowView}
+        onNarrowViewChange={setNarrowView}
+        splitRatio={splitRatio}
+        onSplitRatioChange={updateSplitRatio}
+      />
       <Toaster />
     </div>
   )

@@ -52,6 +52,7 @@ import {
 } from "@/lib/utils/multiSelectShortcuts"
 import { SimpleToast } from "@journal-todo/ui"
 import { toast } from "sonner"
+import { buildImportantTree } from "@/lib/utils/importantTree"
 
 interface TodoListProps {}
 
@@ -78,6 +79,9 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       moveTodo,
       reorderTodos,
       updateTodoLevel,
+      workspaces,
+      importantItems,
+      toggleImportant,
     } = useJournal()
 
     // Ensure page exists - create if needed (in useEffect to avoid render-time state updates)
@@ -135,6 +139,10 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
     // Get todos safely (empty array if page doesn't exist yet)
     const todos = currentPage?.todos ?? []
+    const importanceStates = useMemo(
+      () => buildImportantTree(workspaces, importantItems).states,
+      [workspaces, importantItems]
+    )
 
     // Flatten todos and compute parent IDs
     const flattenedTodos = useMemo(() => flattenTodos(todos), [todos])
@@ -566,6 +574,8 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
                 onFocus={handleFocus}
                 onSelect={handleSelectTodo}
                 inputRef={setTodoRef}
+                importanceState={importanceStates[todo.id] ?? "none"}
+                onToggleImportant={toggleImportant}
               />
             ))}
             {/* DragOverlay - shows clone of dragged item */}

@@ -2,7 +2,7 @@ import { create } from "zustand"
 import { immer } from "zustand/middleware/immer"
 import { v4 as uuidv4 } from "uuid"
 import { generateKeyBetween, generateNKeysBetween } from "fractional-indexing"
-import type { TodoItem, JournalPage, TodoStatus, Workspace } from "../types/journal"
+import type { TodoItem, JournalPage, TodoStatus, Workspace, ImportantItemState } from "../types/journal"
 import { getTodayKey, formatDateKey } from "../utils/dateUtils"
 import { isIncompleteMeaningfulTodo } from "../utils/todoFilters"
 import {
@@ -15,7 +15,11 @@ import {
   createTodo as createTodoRepo,
   updateTodo as updateTodoRepo,
   deleteTodo as deleteTodoRepo,
+  getImportantItems,
+  upsertImportantItem as upsertImportantItemRepo,
+  deleteImportantItem as deleteImportantItemRepo,
 } from "@journal-todo/api"
+import { buildImportantTree, findTodoLocation } from "../utils/importantTree"
 
 const extractTags = (text: string) => {
   const matches = text.match(/#[^\s#]+/g) ?? []
@@ -187,7 +191,7 @@ const persistTodoUpdate = (todoId: string, data: Partial<TodoItem>) => {
 
 // Helper to persist a new todo
 const persistTodoCreate = (workspaceId: string, date: string, page: JournalPage, todo: TodoItem) => {
-  ensurePageExists(workspaceId, page)
+  return ensurePageExists(workspaceId, page)
     .then(() => createTodoRepo(workspaceId, date, todo))
     .catch((error) => {
       console.error(`[persist] Failed to create todo ${todo.id}:`, error)
@@ -198,6 +202,18 @@ const persistTodoCreate = (workspaceId: string, date: string, page: JournalPage,
 const persistTodoDelete = (todoId: string) => {
   deleteTodoRepo(todoId).catch((error) => {
     console.error(`[persist] Failed to delete todo ${todoId}:`, error)
+  })
+}
+
+const persistImportantItem = (item: ImportantItemState) => {
+  upsertImportantItemRepo(item).catch((error) => {
+    console.error(`[persist] Failed to save important item ${item.todoId}:`, error)
+  })
+}
+
+const persistImportantDelete = (todoId: string) => {
+  deleteImportantItemRepo(todoId).catch((error) => {
+    console.error(`[persist] Failed to delete important item ${todoId}:`, error)
   })
 }
 
@@ -222,6 +238,7 @@ interface JournalStore {
   workspaceOrder: string[]
   workspaceRecentOrder: string[]
   workspaces: Record<string, Workspace>
+  importantItems: Record<string, ImportantItemState>
 
   // Workspace actions
   setCurrentWorkspace: (workspaceId: string) => void
@@ -262,6 +279,12 @@ interface JournalStore {
   ) => void
   getTodo: (todoId: string, dateKey?: string) => TodoItem | undefined
   rollOverTodosToToday: (mode?: "copy" | "move") => number
+  toggleImportant: (todoId: string) => void
+  removeFromImportant: (todoId: string) => ImportantItemState | undefined
+  restoreImportantItem: (todoId: string, previous?: ImportantItemState) => void
+  reorderImportant: (activeId: string, overId: string) => void
+  updateTodoTextById: (todoId: string, text: string) => void
+  toggleTodoById: (todoId: string) => boolean
 }
 
 export const useJournalStore = create<JournalStore>()(
@@ -276,7 +299,10 @@ export const useJournalStore = create<JournalStore>()(
         return
       }
 
-      const result = await getWorkspaces()
+      const [result, importantResult] = await Promise.all([
+        getWorkspaces(),
+        getImportantItems(),
+      ])
       if (result.success && result.data.length > 0) {
         const workspaces = result.data
         const workspacesMap: Record<string, Workspace> = {}
@@ -292,11 +318,23 @@ export const useJournalStore = create<JournalStore>()(
           .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
           .map(ws => ws.id)
 
+        const knownTodoIds = new Set(
+          workspaces.flatMap((workspace) =>
+            Object.values(workspace.pages).flatMap((page) => page.todos.map((todo) => todo.id))
+          )
+        )
+        const loadedImportantItems = importantResult.success ? importantResult.data : []
+        const validImportantItems = loadedImportantItems.filter((item) => knownTodoIds.has(item.todoId))
+        loadedImportantItems
+          .filter((item) => !knownTodoIds.has(item.todoId))
+          .forEach((item) => persistImportantDelete(item.todoId))
+
         set({
           workspaces: workspacesMap,
           workspaceOrder,
           workspaceRecentOrder,
           currentWorkspaceId: workspaceRecentOrder[0] || workspaceOrder[0],
+          importantItems: Object.fromEntries(validImportantItems.map((item) => [item.todoId, item])),
         })
       } else if (result.success && result.data.length === 0) {
         const persistResult = await createWorkspaceRepo(defaultWorkspace)
@@ -316,6 +354,7 @@ export const useJournalStore = create<JournalStore>()(
       workspaces: {
         [defaultWorkspace.id]: defaultWorkspace,
       },
+      importantItems: {},
 
       // Workspace actions
       setCurrentWorkspace: (workspaceId: string) => {
@@ -350,6 +389,15 @@ export const useJournalStore = create<JournalStore>()(
         if (workspaceOrder.length <= 1) return
 
         set((state) => {
+          const removedTodoIds = new Set(
+            Object.values(state.workspaces[workspaceId]?.pages ?? {}).flatMap((page) =>
+              page.todos.map((todo) => todo.id)
+            )
+          )
+          for (const todoId of removedTodoIds) {
+            delete state.importantItems[todoId]
+            persistImportantDelete(todoId)
+          }
           delete state.workspaces[workspaceId]
           state.workspaceOrder = state.workspaceOrder.filter((id) => id !== workspaceId)
           state.workspaceRecentOrder = state.workspaceRecentOrder.filter((id) => id !== workspaceId)
@@ -762,11 +810,13 @@ export const useJournalStore = create<JournalStore>()(
           const p = ws.pages[targetDateKey]
           if (!p) return
           p.todos = p.todos.filter((t) => t.id !== todoId)
+          delete state.importantItems[todoId]
           p.updatedAt = new Date()
         })
 
         // Persist the deletion
         persistTodoDelete(todoId)
+        persistImportantDelete(todoId)
       },
 
       moveTodo: (todoId: string, direction: "up" | "down", dateKey?: string) => {
@@ -973,6 +1023,7 @@ export const useJournalStore = create<JournalStore>()(
 
         const copiedTodos: TodoItem[] = []
         const sourceDeletions = new Map<string, string[]>()
+        const movedIdMap = new Map<string, string>()
 
         for (const dateKey of sourceDateKeys) {
           const sourcePage = workspace.pages[dateKey]
@@ -1027,6 +1078,7 @@ export const useJournalStore = create<JournalStore>()(
               if (!includedSet.has(todo.id)) continue
 
               const copiedId = `${rolloverPrefix}${todo.id}`
+              if (mode === "move") movedIdMap.set(todo.id, copiedId)
               if (todayTodoIds.has(copiedId)) continue
 
               const now = new Date()
@@ -1060,6 +1112,7 @@ export const useJournalStore = create<JournalStore>()(
         // (e.g. already rolled over today in copy mode, then switched to move)
         if (copiedTodos.length === 0) {
           if (mode === "move" && sourceDeletions.size > 0) {
+            const metadataToPersist: ImportantItemState[] = []
             set((state) => {
               const ws = state.workspaces[currentWorkspaceId]
               if (!ws) return
@@ -1070,12 +1123,33 @@ export const useJournalStore = create<JournalStore>()(
                 page.todos = page.todos.filter((t) => !toDelete.has(t.id))
                 page.updatedAt = new Date()
               }
+              for (const todoIds of sourceDeletions.values()) {
+                for (const todoId of todoIds) {
+                  const metadata = state.importantItems[todoId]
+                  delete state.importantItems[todoId]
+                  const movedId = movedIdMap.get(todoId)
+                  if (metadata && movedId) {
+                    const movedMetadata = {
+                      ...metadata,
+                      todoId: movedId,
+                      sortParentId: metadata.sortParentId
+                        ? (movedIdMap.get(metadata.sortParentId) ?? null)
+                        : null,
+                      updatedAt: new Date(),
+                    }
+                    state.importantItems[movedId] = movedMetadata
+                    metadataToPersist.push(movedMetadata)
+                  }
+                }
+              }
             })
             for (const todoIds of sourceDeletions.values()) {
               for (const todoId of todoIds) {
                 persistTodoDelete(todoId)
+                persistImportantDelete(todoId)
               }
             }
+            metadataToPersist.forEach(persistImportantItem)
           }
           return 0
         }
@@ -1093,6 +1167,7 @@ export const useJournalStore = create<JournalStore>()(
           return { ...todo, parentId }
         })
 
+        const metadataToPersist: ImportantItemState[] = []
         set((state) => {
           const ws = state.workspaces[currentWorkspaceId]
           if (!ws) return
@@ -1111,23 +1186,172 @@ export const useJournalStore = create<JournalStore>()(
               page.todos = page.todos.filter((t) => !toDelete.has(t.id))
               page.updatedAt = new Date()
             }
+            for (const todoIds of sourceDeletions.values()) {
+              for (const todoId of todoIds) {
+                const metadata = state.importantItems[todoId]
+                delete state.importantItems[todoId]
+                const movedId = movedIdMap.get(todoId)
+                if (metadata && movedId) {
+                  const movedMetadata = {
+                    ...metadata,
+                    todoId: movedId,
+                    sortParentId: metadata.sortParentId
+                      ? (movedIdMap.get(metadata.sortParentId) ?? null)
+                      : null,
+                    updatedAt: new Date(),
+                  }
+                  state.importantItems[movedId] = movedMetadata
+                  metadataToPersist.push(movedMetadata)
+                }
+              }
+            }
           }
         })
 
         ensurePageExists(currentWorkspaceId, todayPage)
         for (const todo of copiedWithParent) {
-          persistTodoCreate(currentWorkspaceId, todayKey, todayPage, todo)
+          const createPromise = persistTodoCreate(currentWorkspaceId, todayKey, todayPage, todo)
+          const metadata = metadataToPersist.find((item) => item.todoId === todo.id)
+          if (metadata) createPromise.then(() => persistImportantItem(metadata))
         }
+        const newlyCreatedIds = new Set(copiedWithParent.map((todo) => todo.id))
+        metadataToPersist
+          .filter((item) => !newlyCreatedIds.has(item.todoId))
+          .forEach(persistImportantItem)
 
         if (mode === "move" && sourceDeletions.size > 0) {
           for (const todoIds of sourceDeletions.values()) {
             for (const todoId of todoIds) {
               persistTodoDelete(todoId)
+              persistImportantDelete(todoId)
             }
           }
         }
 
         return copiedWithParent.length
+      },
+
+      toggleImportant: (todoId: string) => {
+        const { importantItems, workspaces } = get()
+        if (!findTodoLocation(workspaces, todoId)) return
+        const existing = importantItems[todoId]
+        const now = new Date()
+        const next: ImportantItemState = {
+          todoId,
+          isPinned: !existing?.isPinned,
+          isExcluded: existing?.isPinned ? Boolean(existing.isExcluded) : false,
+          sortOrder: existing?.sortOrder ?? null,
+          sortParentId: existing?.sortParentId ?? null,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        set((state) => {
+          state.importantItems[todoId] = next
+        })
+        persistImportantItem(next)
+      },
+
+      removeFromImportant: (todoId: string) => {
+        const existing = get().importantItems[todoId]
+        const previous = existing ? { ...existing } : undefined
+        const now = new Date()
+        const next: ImportantItemState = {
+          todoId,
+          isPinned: false,
+          isExcluded: true,
+          sortOrder: existing?.sortOrder ?? null,
+          sortParentId: existing?.sortParentId ?? null,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        set((state) => {
+          state.importantItems[todoId] = next
+        })
+        persistImportantItem(next)
+        return previous
+      },
+
+      restoreImportantItem: (todoId: string, previous?: ImportantItemState) => {
+        if (previous) {
+          const restored = { ...previous, updatedAt: new Date() }
+          set((state) => {
+            state.importantItems[todoId] = restored
+          })
+          persistImportantItem(restored)
+          return
+        }
+        set((state) => {
+          delete state.importantItems[todoId]
+        })
+        persistImportantDelete(todoId)
+      },
+
+      reorderImportant: (activeId: string, overId: string) => {
+        const { workspaces, importantItems } = get()
+        const { todos } = buildImportantTree(workspaces, importantItems)
+        const active = todos.find((todo) => todo.id === activeId)
+        const over = todos.find((todo) => todo.id === overId)
+        if (!active || !over || active.parentId !== over.parentId) return
+
+        const siblings = todos.filter((todo) => todo.parentId === active.parentId)
+        const activeIndex = siblings.findIndex((todo) => todo.id === activeId)
+        const overIndex = siblings.findIndex((todo) => todo.id === overId)
+        if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) return
+        const reordered = [...siblings]
+        const [moved] = reordered.splice(activeIndex, 1)
+        reordered.splice(overIndex, 0, moved)
+        const orders = generateNKeysBetween(null, null, reordered.length)
+        const now = new Date()
+
+        set((state) => {
+          reordered.forEach((todo, index) => {
+            const existing = state.importantItems[todo.id]
+            const next: ImportantItemState = {
+              todoId: todo.id,
+              isPinned: existing?.isPinned ?? false,
+              isExcluded: existing?.isExcluded ?? false,
+              sortOrder: orders[index],
+              sortParentId: active.parentId,
+              createdAt: existing?.createdAt ?? now,
+              updatedAt: now,
+            }
+            state.importantItems[todo.id] = next
+            persistImportantItem(next)
+          })
+        })
+      },
+
+      updateTodoTextById: (todoId: string, text: string) => {
+        const location = findTodoLocation(get().workspaces, todoId)
+        if (!location) return
+        const tags = extractTags(text)
+        set((state) => {
+          const todo = state.workspaces[location.workspaceId]?.pages[location.dateKey]?.todos
+            .find((item) => item.id === todoId)
+          if (!todo) return
+          todo.text = text
+          todo.tags = tags
+          todo.updatedAt = new Date()
+          state.workspaces[location.workspaceId].pages[location.dateKey].updatedAt = new Date()
+        })
+        persistTodoUpdate(todoId, { text, tags })
+      },
+
+      toggleTodoById: (todoId: string) => {
+        const location = findTodoLocation(get().workspaces, todoId)
+        if (!location) return false
+        const nextStatus: TodoStatus = location.todo.status === "done" ? "todo" : "done"
+        set((state) => {
+          const todo = state.workspaces[location.workspaceId]?.pages[location.dateKey]?.todos
+            .find((item) => item.id === todoId)
+          if (todo) {
+            todo.status = nextStatus
+            todo.updatedAt = new Date()
+            state.workspaces[location.workspaceId].pages[location.dateKey].updatedAt = new Date()
+          }
+        })
+        persistTodoUpdate(todoId, { status: nextStatus })
+        return true
       },
     }
   })

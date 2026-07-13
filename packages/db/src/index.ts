@@ -8,6 +8,7 @@ export type {
   Workspace,
   Result,
   StorageAdapter,
+  ImportantItemState,
 } from "./adapters/types"
 
 // Export schema

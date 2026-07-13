@@ -4,8 +4,8 @@ export type TodoShortcutPlatform = "mac" | "windows"
 
 type ShortcutKeyEvent = Pick<
   KeyboardEvent,
-  "altKey" | "ctrlKey" | "defaultPrevented" | "isComposing" | "key" | "metaKey"
->
+  "altKey" | "ctrlKey" | "defaultPrevented" | "key" | "metaKey"
+> & { isComposing?: boolean }
 
 export const getTodoShortcutPlatform = (): TodoShortcutPlatform => (
   isMac() ? "mac" : "windows"

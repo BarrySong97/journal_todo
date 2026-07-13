@@ -7,6 +7,7 @@ export function useJournal() {
   const workspaceOrder = useJournalStore((state) => state.workspaceOrder)
   const workspaceRecentOrder = useJournalStore((state) => state.workspaceRecentOrder)
   const workspaces = useJournalStore((state) => state.workspaces)
+  const importantItems = useJournalStore((state) => state.importantItems)
   const setCurrentWorkspace = useJournalStore((state) => state.setCurrentWorkspace)
   const createWorkspace = useJournalStore((state) => state.createWorkspace)
   const renameWorkspace = useJournalStore((state) => state.renameWorkspace)
@@ -28,6 +29,12 @@ export function useJournal() {
   const reorderTodos = useJournalStore((state) => state.reorderTodos)
   const getTodo = useJournalStore((state) => state.getTodo)
   const rollOverTodosToToday = useJournalStore((state) => state.rollOverTodosToToday)
+  const toggleImportant = useJournalStore((state) => state.toggleImportant)
+  const removeFromImportant = useJournalStore((state) => state.removeFromImportant)
+  const restoreImportantItem = useJournalStore((state) => state.restoreImportantItem)
+  const reorderImportant = useJournalStore((state) => state.reorderImportant)
+  const updateTodoTextById = useJournalStore((state) => state.updateTodoTextById)
+  const toggleTodoById = useJournalStore((state) => state.toggleTodoById)
 
   const currentWorkspace: Workspace | undefined = workspaces[currentWorkspaceId]
   const currentDateKey = currentWorkspace?.currentDateKey ?? getTodayKey()
@@ -41,6 +48,7 @@ export function useJournal() {
     workspaceOrder,
     workspaceRecentOrder,
     workspaces,
+    importantItems,
     currentWorkspace,
     currentDateKey,
     currentPage,
@@ -65,5 +73,11 @@ export function useJournal() {
     reorderTodos,
     getTodo,
     rollOverTodosToToday,
+    toggleImportant,
+    removeFromImportant,
+    restoreImportantItem,
+    reorderImportant,
+    updateTodoTextById,
+    toggleTodoById,
   }
 }

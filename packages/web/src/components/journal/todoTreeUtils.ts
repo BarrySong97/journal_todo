@@ -79,10 +79,10 @@ export function getParentIds(todos: TodoItem[]): Set<string> {
 /**
  * Get visible todos based on collapsed state
  */
-export function getVisibleTodos(
-  items: FlattenedTodo[],
+export function getVisibleTodos<T extends FlattenedTodo>(
+  items: T[],
   collapsedIds: Set<string>
-): FlattenedTodo[] {
+): T[] {
   const excludeParentIds = new Set<string>()
 
   return items.filter((item) => {

@@ -10,6 +10,7 @@ import { useSortable, type AnimateLayoutChanges } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { TodoItem } from "./TodoItem"
 import type { FlattenedTodo } from "./todoTreeUtils"
+import type { ImportanceState } from "@/lib/utils/importantTree"
 
 const animateLayoutChanges: AnimateLayoutChanges = ({ isSorting, wasDragging }) =>
   isSorting || wasDragging
@@ -32,6 +33,9 @@ interface SortableTodoItemProps {
   onFocus: (todoId: string) => void
   onSelect?: (todoId: string, shiftKey: boolean) => void
   inputRef: (todoId: string, element: HTMLTextAreaElement | null) => void
+  importanceState?: ImportanceState
+  onToggleImportant?: (todoId: string) => void
+  onRemoveImportant?: (todoId: string) => void
 }
 
 export function SortableTodoItem({
@@ -52,6 +56,9 @@ export function SortableTodoItem({
   onFocus,
   onSelect,
   inputRef,
+  importanceState,
+  onToggleImportant,
+  onRemoveImportant,
 }: SortableTodoItemProps) {
   const {
     attributes,
@@ -99,6 +106,9 @@ export function SortableTodoItem({
       onFocus={onFocus}
       onSelect={onSelect}
       inputRef={inputRef}
+      importanceState={importanceState}
+      onToggleImportant={onToggleImportant}
+      onRemoveImportant={onRemoveImportant}
     />
   )
 }

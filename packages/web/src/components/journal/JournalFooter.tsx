@@ -1,6 +1,6 @@
 "use client"
 
-import { Moon, Sun, Check, ChevronDown, RotateCcw } from "lucide-react"
+import { Moon, Sun, Check, ChevronDown, RotateCcw, Star } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -63,6 +63,9 @@ interface JournalFooterProps {
   onOpenRollover?: () => void
   rolloverIsMove: boolean
   onRolloverModeChange: (isMove: boolean) => void
+  isWide: boolean
+  activeView: "workspace" | "important"
+  onViewChange: (view: "workspace" | "important") => void
 }
 
 const nameSchema = z.object({
@@ -195,6 +198,9 @@ export function JournalFooter({
   onOpenRollover,
   rolloverIsMove,
   onRolloverModeChange,
+  isWide,
+  activeView,
+  onViewChange,
 }: JournalFooterProps) {
   const {
     workspaces,
@@ -231,6 +237,7 @@ export function JournalFooter({
     .filter((workspace): workspace is Workspace => Boolean(workspace))
 
   const currentWorkspace = workspaces[currentWorkspaceId]
+  const isImportantNarrow = !isWide && activeView === "important"
   const currentWorkspaceIndex = useMemo(
     () => workspaceOrder.findIndex((id) => id === currentWorkspaceId),
     [workspaceOrder, currentWorkspaceId]
@@ -289,6 +296,7 @@ export function JournalFooter({
 
   const handleWorkspaceChange = (workspaceId: string) => {
     setCurrentWorkspace(workspaceId)
+    onViewChange("workspace")
     setIsCommandOpen(false)
   }
 
@@ -347,6 +355,7 @@ export function JournalFooter({
 
   const handleCreateSubmit = createForm.handleSubmit(({ name }: NameFormValues) => {
     createWorkspace(name.trim())
+    onViewChange("workspace")
     closeCreateDialog()
     createForm.reset({ name: "" })
   })
@@ -482,7 +491,7 @@ export function JournalFooter({
         }
       }
 
-      if (event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (event.altKey && !event.ctrlKey && !event.metaKey && !isImportantNarrow) {
         switch (key) {
           case "arrowleft": {
             event.preventDefault()
@@ -524,14 +533,14 @@ export function JournalFooter({
           }
           case "r": {
             event.preventDefault()
-            if (currentWorkspace) {
+            if (currentWorkspace && !isImportantNarrow) {
               openRenameDialog(isCommandOpen)
             }
             break
           }
           case "backspace": {
             event.preventDefault()
-            if (workspaceOrder.length > 1) {
+            if (workspaceOrder.length > 1 && !isImportantNarrow) {
               openDeleteDialog(isCommandOpen)
             }
             break
@@ -553,6 +562,7 @@ export function JournalFooter({
     recentWorkspaceList,
     goToNextDay,
     goToPreviousDay,
+    isImportantNarrow,
   ])
 
   useEffect(() => {
@@ -652,11 +662,21 @@ export function JournalFooter({
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent">
               <span className="max-w-[200px] truncate">
-                {currentWorkspace?.name ?? "Journal"}
+                {!isWide && activeView === "important" ? "Important" : (currentWorkspace?.name ?? "Journal")}
               </span>
               <ChevronDown className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={6} className="min-w-56">
+              {!isWide && (
+                <>
+                  <DropdownMenuItem onClick={() => onViewChange("important")}>
+                    <Star className="h-4 w-4" />
+                    <span className="flex-1">Important</span>
+                    {activeView === "important" && <Check className="h-4 w-4" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               {workspaceList.map((workspace) => (
                 <DropdownMenuItem
                   key={workspace.id}
@@ -668,7 +688,7 @@ export function JournalFooter({
                       {incompleteTodoCounts[workspace.id]}
                     </span>
                   )}
-                  {workspace.id === currentWorkspaceId && (
+                  {workspace.id === currentWorkspaceId && (isWide || activeView === "workspace") && (
                     <Check className="h-4 w-4" />
                   )}
                 </DropdownMenuItem>
@@ -679,13 +699,13 @@ export function JournalFooter({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => openRenameDialog(false)}
-                disabled={!currentWorkspace}
+                disabled={!currentWorkspace || isImportantNarrow}
               >
                 Rename current workspace
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => openDeleteDialog(false)}
-                disabled={workspaceOrder.length <= 1}
+                disabled={workspaceOrder.length <= 1 || isImportantNarrow}
                 className="text-destructive focus:text-destructive"
               >
                 Delete current workspace
@@ -745,14 +765,14 @@ export function JournalFooter({
               </CommandItem>
               <CommandItem
                 onSelect={() => openRenameDialog(true)}
-                disabled={!currentWorkspace}
+                disabled={!currentWorkspace || isImportantNarrow}
               >
                 Rename current workspace
                 <CommandShortcut>Ctrl Alt R</CommandShortcut>
               </CommandItem>
               <CommandItem
                 onSelect={() => openDeleteDialog(true)}
-                disabled={workspaceOrder.length <= 1}
+                disabled={workspaceOrder.length <= 1 || isImportantNarrow}
               >
                 Delete current workspace
                 <CommandShortcut>Ctrl Alt Backspace</CommandShortcut>

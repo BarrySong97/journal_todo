@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach, vi } from "vitest"
 import { useJournalStore, splitTodoParagraphs } from "../lib/stores/journalStore"
 import { getTodayKey, formatDateKey } from "../lib/utils/dateUtils"
 import type { JournalPage, TodoItem, Workspace } from "../lib/types/journal"
+import { buildImportantTree } from "../lib/utils/importantTree"
 
 const apiMocks = vi.hoisted(() => ({
   initializeStorage: vi.fn().mockResolvedValue({ success: true, data: undefined }),
   getWorkspaces: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getImportantItems: vi.fn().mockResolvedValue({ success: true, data: [] }),
   createWorkspace: vi.fn().mockImplementation(async (workspace: Workspace) => ({
     success: true,
     data: workspace,
@@ -19,6 +21,8 @@ const apiMocks = vi.hoisted(() => ({
   })),
   updateTodo: vi.fn().mockResolvedValue({ success: true, data: undefined }),
   deleteTodo: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+  upsertImportantItem: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+  deleteImportantItem: vi.fn().mockResolvedValue({ success: true, data: undefined }),
 }))
 
 vi.mock("@journal-todo/api", () => apiMocks)
@@ -63,6 +67,7 @@ const setStoreState = (todos: TodoItem[]) => {
     workspaceOrder: [workspaceId],
     workspaceRecentOrder: [workspaceId],
     workspaces: { [workspaceId]: workspace },
+    importantItems: {},
   })
 
   return { workspaceId, dateKey }
@@ -89,6 +94,7 @@ const setStoreStateWithDate = (dateKey: string, todos: TodoItem[], workspaceId =
     workspaceOrder: [workspaceId],
     workspaceRecentOrder: [workspaceId],
     workspaces: { [workspaceId]: workspace },
+    importantItems: {},
   })
 
   return { workspaceId, dateKey }
@@ -431,6 +437,48 @@ describe("journalStore reorder and hierarchy", () => {
     reorderTodos("p1", "p2", null, 0, dateKey)
 
     expect(apiMocks.updateTodo).toHaveBeenCalled()
+  })
+})
+
+describe("journalStore Important actions", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("deduplicates nested pins and preserves the child when the parent is removed", () => {
+    setStoreState([
+      makeTodo("parent", "a0", 0),
+      makeTodo("child", "a1", 1, "parent"),
+    ])
+
+    const store = useJournalStore.getState()
+    store.toggleImportant("parent")
+    store.toggleImportant("child")
+    const previous = store.removeFromImportant("parent")
+
+    const removed = useJournalStore.getState()
+    expect(buildImportantTree(removed.workspaces, removed.importantItems).todos.map((todo) => todo.id))
+      .toEqual(["child"])
+
+    removed.restoreImportantItem("parent", previous)
+    const restored = useJournalStore.getState()
+    expect(buildImportantTree(restored.workspaces, restored.importantItems).todos.map((todo) => todo.id))
+      .toEqual(["parent", "child"])
+  })
+
+  it("reorders Important siblings without changing source order", () => {
+    const { workspaceId, dateKey } = setStoreState([
+      makeTodo("parent", "a0", 0),
+      makeTodo("first", "a1", 1, "parent"),
+      makeTodo("second", "a2", 1, "parent"),
+    ])
+    const store = useJournalStore.getState()
+    store.toggleImportant("parent")
+    store.reorderImportant("second", "first")
+
+    const next = useJournalStore.getState()
+    expect(buildImportantTree(next.workspaces, next.importantItems).todos.map((todo) => todo.id))
+      .toEqual(["parent", "second", "first"])
+    expect(sortByOrder(next.workspaces[workspaceId].pages[dateKey].todos).map((todo) => todo.id))
+      .toEqual(["parent", "first", "second"])
   })
 })
 

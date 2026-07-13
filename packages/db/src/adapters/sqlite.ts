@@ -8,6 +8,7 @@ import type {
   Workspace,
   JournalPage,
   TodoItem,
+  ImportantItemState,
 } from "./types"
 
 // Rust command request/response types
@@ -331,6 +332,16 @@ export class SqliteStorageAdapter implements StorageAdapter {
 
   async deleteWorkspace(id: string): Promise<Result<void>> {
     try {
+      const todoRows = await this.db
+        .select({ id: schema.todos.id })
+        .from(schema.todos)
+        .where(eq(schema.todos.workspaceId, id))
+        .all()
+      for (const todo of todoRows) {
+        await this.db
+          .delete(schema.importantItems)
+          .where(eq(schema.importantItems.todoId, todo.id))
+      }
       // Delete todos first (foreign key constraint)
       await this.db
         .delete(schema.todos)
@@ -574,10 +585,63 @@ export class SqliteStorageAdapter implements StorageAdapter {
 
   async deleteTodo(id: string): Promise<Result<void>> {
     try {
+      await this.db.delete(schema.importantItems).where(eq(schema.importantItems.todoId, id))
       await this.db.delete(schema.todos).where(eq(schema.todos.id, id))
       return { success: true, data: undefined }
     } catch (error) {
       return { success: false, error: `Failed to delete todo: ${error}` }
+    }
+  }
+
+  async getImportantItems(): Promise<Result<ImportantItemState[]>> {
+    try {
+      const rows = await this.db.select().from(schema.importantItems).all()
+      return {
+        success: true,
+        data: rows.map((row) => ({
+          todoId: row.todoId,
+          isPinned: row.isPinned,
+          isExcluded: row.isExcluded,
+          sortOrder: row.sortOrder ?? null,
+          sortParentId: row.sortParentId ?? null,
+          createdAt: this.toDate(row.createdAt),
+          updatedAt: this.toDate(row.updatedAt),
+        })),
+      }
+    } catch (error) {
+      return { success: false, error: `Failed to get important items: ${error}` }
+    }
+  }
+
+  async upsertImportantItem(item: ImportantItemState): Promise<Result<ImportantItemState>> {
+    try {
+      await this.db
+        .insert(schema.importantItems)
+        .values(item)
+        .onConflictDoUpdate({
+          target: schema.importantItems.todoId,
+          set: {
+            isPinned: item.isPinned,
+            isExcluded: item.isExcluded,
+            sortOrder: item.sortOrder,
+            sortParentId: item.sortParentId,
+            updatedAt: item.updatedAt,
+          },
+        })
+      return { success: true, data: item }
+    } catch (error) {
+      return { success: false, error: `Failed to save important item: ${error}` }
+    }
+  }
+
+  async deleteImportantItem(todoId: string): Promise<Result<void>> {
+    try {
+      await this.db
+        .delete(schema.importantItems)
+        .where(eq(schema.importantItems.todoId, todoId))
+      return { success: true, data: undefined }
+    } catch (error) {
+      return { success: false, error: `Failed to delete important item: ${error}` }
     }
   }
 

@@ -34,3 +34,13 @@ export interface JournalData {
   currentWorkspaceId: string
   version: string
 }
+
+export interface ImportantItemState {
+  todoId: string
+  isPinned: boolean
+  isExcluded: boolean
+  sortOrder: string | null
+  sortParentId: string | null
+  createdAt: Date
+  updatedAt: Date
+}

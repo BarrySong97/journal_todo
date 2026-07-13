@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest"
-import { render, fireEvent, createEvent } from "@testing-library/react"
+import { afterEach, describe, it, expect, vi } from "vitest"
+import { cleanup, render, fireEvent, createEvent } from "@testing-library/react"
 import { TodoItem } from "../components/journal/TodoItem"
 import type { FlattenedTodo } from "../components/journal/todoTreeUtils"
 
@@ -17,6 +17,8 @@ const makeTodo = (overrides?: Partial<FlattenedTodo>): FlattenedTodo => ({
   depth: 0,
   ...overrides,
 })
+
+afterEach(cleanup)
 
 describe("TodoItem UI", () => {
   it("calls onTextChange when textarea changes", () => {

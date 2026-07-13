@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { Workspace } from "@/lib/types/journal"
+import type { ImportantItemState, Workspace } from "@/lib/types/journal"
 
 const mockDeleteTodo = vi.fn().mockResolvedValue(undefined)
 const mockCreateTodo = vi.fn().mockResolvedValue(undefined)
@@ -9,6 +9,7 @@ const mockCreatePage = vi.fn().mockResolvedValue(undefined)
 vi.mock("@journal-todo/api", () => ({
   initializeStorage: vi.fn().mockResolvedValue({ success: true }),
   getWorkspaces: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  getImportantItems: vi.fn().mockResolvedValue({ success: true, data: [] }),
   createWorkspace: vi.fn().mockResolvedValue({ success: true }),
   updateWorkspace: vi.fn().mockResolvedValue(undefined),
   deleteWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -16,6 +17,8 @@ vi.mock("@journal-todo/api", () => ({
   createTodo: mockCreateTodo,
   updateTodo: vi.fn().mockResolvedValue(undefined),
   deleteTodo: mockDeleteTodo,
+  upsertImportantItem: vi.fn().mockResolvedValue({ success: true }),
+  deleteImportantItem: vi.fn().mockResolvedValue({ success: true }),
 }))
 
 vi.mock("@/lib/utils/dateUtils", async (importOriginal) => {
@@ -88,6 +91,7 @@ describe("rollOverTodosToToday", () => {
       workspaceOrder: ["ws-1"],
       workspaceRecentOrder: ["ws-1"],
       workspaces: { "ws-1": makeWorkspace() },
+      importantItems: {},
     })
   })
 
@@ -109,6 +113,44 @@ describe("rollOverTodosToToday", () => {
 
     // deleteTodo should NOT be called
     expect(mockDeleteTodo).not.toHaveBeenCalled()
+  })
+
+  it("copy mode keeps importance on the source identity only", () => {
+    const important: ImportantItemState = {
+      todoId: "todo-incomplete",
+      isPinned: true,
+      isExcluded: false,
+      sortOrder: "a0",
+      sortParentId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    useJournalStore.setState({ importantItems: { "todo-incomplete": important } })
+
+    useJournalStore.getState().rollOverTodosToToday("copy")
+
+    const items = useJournalStore.getState().importantItems
+    expect(items["todo-incomplete"]?.isPinned).toBe(true)
+    expect(items[`rollover:${TODAY}:todo-incomplete`]).toBeUndefined()
+  })
+
+  it("move mode transfers importance to the moved identity", () => {
+    const important: ImportantItemState = {
+      todoId: "todo-incomplete",
+      isPinned: true,
+      isExcluded: false,
+      sortOrder: "a0",
+      sortParentId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+    useJournalStore.setState({ importantItems: { "todo-incomplete": important } })
+
+    useJournalStore.getState().rollOverTodosToToday("move")
+
+    const items = useJournalStore.getState().importantItems
+    expect(items["todo-incomplete"]).toBeUndefined()
+    expect(items[`rollover:${TODAY}:todo-incomplete`]?.isPinned).toBe(true)
   })
 
   it("move mode: copies incomplete todos to today and removes them from source", () => {

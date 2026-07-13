@@ -41,6 +41,16 @@ export interface Workspace {
   updatedAt: Date
 }
 
+export interface ImportantItemState {
+  todoId: string
+  isPinned: boolean
+  isExcluded: boolean
+  sortOrder: string | null
+  sortParentId: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
 /**
  * Result type for error handling
  * Represents either a successful result with data or an error
@@ -139,6 +149,11 @@ export interface StorageAdapter {
    * Delete a todo
    */
   deleteTodo(id: string): Promise<Result<void>>
+
+  // Important view metadata
+  getImportantItems(): Promise<Result<ImportantItemState[]>>
+  upsertImportantItem(item: ImportantItemState): Promise<Result<ImportantItemState>>
+  deleteImportantItem(todoId: string): Promise<Result<void>>
 
   // Batch operations
   /**

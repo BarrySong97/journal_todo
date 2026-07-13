@@ -4,6 +4,7 @@ import type {
   Workspace,
   JournalPage,
   TodoItem,
+  ImportantItemState,
 } from "./types"
 
 const STORAGE_KEY = "journal-storage"
@@ -14,6 +15,7 @@ interface StorageState {
     workspaceOrder: string[]
     workspaceRecentOrder: string[]
     workspaces: Record<string, Workspace>
+    importantItems?: Record<string, ImportantItemState>
   }
   version: number
 }
@@ -66,6 +68,24 @@ export class LocalStorageAdapter implements StorageAdapter {
     })
   }
 
+  private getAllImportantItems(): Record<string, ImportantItemState> {
+    return this.getStorageState()?.state.importantItems ?? {}
+  }
+
+  private updateAllImportantItems(
+    updater: (items: Record<string, ImportantItemState>) => Record<string, ImportantItemState>
+  ): void {
+    const state = this.getStorageState()
+    if (!state) throw new Error("Storage not initialized")
+    this.saveStorageState({
+      ...state,
+      state: {
+        ...state.state,
+        importantItems: updater(state.state.importantItems ?? {}),
+      },
+    })
+  }
+
   private normalizeDates(workspace: Workspace): Workspace {
     return {
       ...workspace,
@@ -112,6 +132,7 @@ export class LocalStorageAdapter implements StorageAdapter {
             workspaceOrder: [],
             workspaceRecentOrder: [],
             workspaces: {},
+            importantItems: {},
           },
           version: 8,
         })
@@ -210,12 +231,18 @@ export class LocalStorageAdapter implements StorageAdapter {
       if (!workspaces[id]) {
         return { success: false, error: `Workspace ${id} not found` }
       }
+      const removedTodoIds = new Set(
+        Object.values(workspaces[id].pages).flatMap((page) => page.todos.map((todo) => todo.id))
+      )
 
       this.updateAllWorkspaces((ws) => {
         const updated = { ...ws }
         delete updated[id]
         return updated
       })
+      this.updateAllImportantItems((items) =>
+        Object.fromEntries(Object.entries(items).filter(([todoId]) => !removedTodoIds.has(todoId)))
+      )
 
       return { success: true, data: undefined }
     } catch (error) {
@@ -484,6 +511,12 @@ export class LocalStorageAdapter implements StorageAdapter {
               },
             }))
 
+            this.updateAllImportantItems((items) => {
+              const next = { ...items }
+              delete next[id]
+              return next
+            })
+
             return { success: true, data: undefined }
           }
         }
@@ -495,6 +528,41 @@ export class LocalStorageAdapter implements StorageAdapter {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       }
+    }
+  }
+
+  async getImportantItems(): Promise<Result<ImportantItemState[]>> {
+    try {
+      const items = Object.values(this.getAllImportantItems()).map((item) => ({
+        ...item,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      }))
+      return { success: true, data: items }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+    }
+  }
+
+  async upsertImportantItem(item: ImportantItemState): Promise<Result<ImportantItemState>> {
+    try {
+      this.updateAllImportantItems((items) => ({ ...items, [item.todoId]: item }))
+      return { success: true, data: item }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+    }
+  }
+
+  async deleteImportantItem(todoId: string): Promise<Result<void>> {
+    try {
+      this.updateAllImportantItems((items) => {
+        const next = { ...items }
+        delete next[todoId]
+        return next
+      })
+      return { success: true, data: undefined }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
     }
   }
 

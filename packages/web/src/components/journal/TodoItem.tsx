@@ -17,9 +17,10 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react"
 import { Checkbox, cn } from "@journal-todo/ui"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, CircleMinus, Star } from "lucide-react"
 import type { FlattenedTodo } from "./todoTreeUtils"
 import { INDENTATION_WIDTH } from "./todoTreeUtils"
+import type { ImportanceState } from "@/lib/utils/importantTree"
 
 export interface TodoItemProps extends Omit<HTMLAttributes<HTMLDivElement>, "id" | "onFocus" | "onKeyDown" | "onToggle" | "onSelect"> {
   todo: FlattenedTodo
@@ -42,6 +43,9 @@ export interface TodoItemProps extends Omit<HTMLAttributes<HTMLDivElement>, "id"
   onFocus: (todoId: string) => void
   onSelect?: (todoId: string, shiftKey: boolean) => void
   inputRef: (todoId: string, element: HTMLTextAreaElement | null) => void
+  importanceState?: ImportanceState
+  onToggleImportant?: (todoId: string) => void
+  onRemoveImportant?: (todoId: string) => void
 }
 
 export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
@@ -68,6 +72,9 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
       onFocus,
       onSelect,
       inputRef,
+      importanceState = "none",
+      onToggleImportant,
+      onRemoveImportant,
       ...props
     },
     ref
@@ -160,7 +167,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
         data-todo-id={todo.id}
         onClick={handleWrapperClick}
         className={cn(
-          "box-border list-none",
+          "group box-border list-none",
           // Clone styling (for DragOverlay)
           clone && "inline-block pointer-events-none p-0 pl-2.5 pt-1",
           // Ghost + Indicator: show as line
@@ -269,6 +276,39 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
                       )}
                     />
                   </button>
+                )}
+
+                {!clone && (onToggleImportant || onRemoveImportant) && (
+                  <div className="flex items-center self-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                    {onToggleImportant && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleImportant(todo.id)}
+                        className="rounded p-0.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        aria-label={importanceState === "explicit" ? "Remove explicit important mark" : "Mark as important"}
+                        title={importanceState === "explicit" ? "Remove explicit important mark" : "Mark as important"}
+                      >
+                        <Star
+                          className={cn(
+                            "h-3.5 w-3.5",
+                            importanceState === "explicit" && "fill-current text-primary",
+                            importanceState === "inherited" && "fill-current opacity-40"
+                          )}
+                        />
+                      </button>
+                    )}
+                    {onRemoveImportant && (
+                      <button
+                        type="button"
+                        onClick={() => onRemoveImportant(todo.id)}
+                        className="rounded p-0.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        aria-label="Remove from Important"
+                        title="Remove from Important"
+                      >
+                        <CircleMinus className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </>

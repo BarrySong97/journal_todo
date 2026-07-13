@@ -66,7 +66,7 @@ export function DateNavigation({ className }: DateNavigationProps) {
     }
   }
   return (
-    <div className={cn("flex items-center ml-2 ", className)}>
+    <div className={cn("flex items-center ml-2 ", className)} data-tauri-no-drag-region>
       {/* Left side: Previous day */}
       <Button
         variant="ghost"
