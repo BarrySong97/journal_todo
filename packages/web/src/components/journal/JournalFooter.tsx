@@ -171,6 +171,15 @@ const AutoUpdateTracker = () => {
       await relaunch()
     } catch (error) {
       console.warn("Updater install failed", error)
+      const message = error instanceof Error
+        ? error.message
+        : "Please restart JournalTodo and try again."
+      const id = toast.error(`Version ${availableUpdate.version} update failed`, {
+        id: toastIdRef.current ?? undefined,
+        description: message,
+        duration: Infinity,
+      })
+      toastIdRef.current = id
       setIsInstalling(false)
     }
   }, [availableUpdate, isInstalling])
@@ -180,7 +189,7 @@ const AutoUpdateTracker = () => {
 
     const id = toast(`Version ${availableUpdate.version} is available`, {
       action: {
-        label: "Update now",
+        label: "Install & restart",
         onClick: handleInstall,
       },
       duration: Infinity,
