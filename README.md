@@ -8,7 +8,11 @@ This template should help get you started developing with Tauri, React and Types
 
 ## Release Scripts
 
-This repo uses one unified release script:
+Releases are built and published by GitHub Actions. Local release commands only
+prepare and push the version tag; Windows and macOS artifacts are produced on
+GitHub-hosted runners and uploaded to GitHub Release.
+
+The repository uses one release helper:
 
 - `release.sh`
 
@@ -25,12 +29,17 @@ This repo uses one unified release script:
 ./release.sh commit          # commit version files
 ./release.sh tag             # create v<version> tag
 ./release.sh push            # push main + tag
-./release.sh build           # build current OS artifacts
-./release.sh upload          # upload with retry strategy
-./release.sh upload --latest-json-only  # only merge and upload latest.json with --clobber
+./release.sh build           # optional local build for diagnostics
+./release.sh upload          # optional manual upload/recovery
+./release.sh upload --latest-json-only  # optional updater metadata recovery
 ./release.sh notes           # generate website downloads/release-notes JSON from GitHub release + git tags
-./release.sh all patch       # run full sequence
+./release.sh all patch       # prepare, commit, tag, and push; GitHub Actions publishes the release
 ```
+
+The GitHub repository must define `TAURI_SIGNING_PRIVATE_KEY` and, when the key
+is encrypted, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` as Actions secrets. The
+workflow can also be rerun manually with an existing version tag from the
+Actions tab.
 
 ### Retry Upload After Network Issues
 
@@ -63,7 +72,7 @@ The script will:
 
 ### Notes
 
-- macOS and Windows use the same release flow model; only artifact sets differ.
+- macOS and Windows are built in parallel by `.github/workflows/release.yml`.
 - Windows upload assets include NSIS and MSI bundles (portable `.exe` is not uploaded).
 - macOS artifacts include `dmg` and `app.tar.gz` + `.sig` for both Intel and Apple Silicon.
 - Legacy scripts `release-windows.sh`, `release-macos.sh`, `release-script.sh` were removed.

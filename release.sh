@@ -738,7 +738,8 @@ step_all() {
   local version
   version=$(get_current_version)
 
-  echo -e "${YELLOW}About to run commit -> tag -> push -> build -> upload for v${version}${NC}"
+  echo -e "${YELLOW}About to run commit -> tag -> push for v${version}${NC}"
+  echo -e "${YELLOW}GitHub Actions will build and publish the release.${NC}"
   read -p "Proceed? (yes/no): " -r confirm
   if [[ ! "$confirm" =~ ^[Yy][Ee][Ss]$ ]]; then
     git checkout -- "${VERSION_FILES[@]}"
@@ -750,8 +751,6 @@ step_all() {
   step_commit
   step_tag
   step_push
-  step_build
-  step_upload
 }
 
 main() {
