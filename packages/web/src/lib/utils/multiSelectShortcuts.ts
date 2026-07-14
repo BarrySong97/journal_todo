@@ -70,8 +70,12 @@ export const hasNativeTextSelection = (eventTarget: EventTarget | null): boolean
   return false
 }
 
-export const hasDocumentTextSelection = (): boolean => (
-  (window.getSelection()?.toString() ?? "").length > 0
+export const isTextEntryTarget = (eventTarget: EventTarget | null): boolean => (
+  eventTarget instanceof HTMLTextAreaElement ||
+  eventTarget instanceof HTMLInputElement ||
+  (eventTarget instanceof HTMLElement &&
+    (eventTarget.isContentEditable === true ||
+      eventTarget.getAttribute("contenteditable") === "true"))
 )
 
 export const getNextTodoIdAfterBulkDelete = <T extends { id: string }>(

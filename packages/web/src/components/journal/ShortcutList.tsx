@@ -88,9 +88,32 @@ export function ShortcutList() {
         </div>
       </div>
       <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-muted-foreground">Extend selection</span>
+        <div className="flex items-center gap-1">
+          <Kbd>Shift</Kbd>
+          <Kbd>↑/↓</Kbd>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-sm">
         <span className="text-muted-foreground">Clear selection</span>
         <div className="flex items-center gap-1">
           <Kbd>Esc</Kbd>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-muted-foreground">Move todo up/down</span>
+        <div className="flex items-center gap-1">
+          <Kbd>Alt</Kbd>
+          <Kbd>Shift</Kbd>
+          <Kbd>↑/↓</Kbd>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-muted-foreground">Switch pane focus</span>
+        <div className="flex items-center gap-1">
+          <Kbd>{mod}</Kbd>
+          <Kbd>Shift</Kbd>
+          <Kbd>I</Kbd>
         </div>
       </div>
       <div className="flex items-center justify-between gap-2 text-sm">

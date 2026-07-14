@@ -283,6 +283,7 @@ interface JournalStore {
   removeFromImportant: (todoId: string) => ImportantItemState | undefined
   restoreImportantItem: (todoId: string, previous?: ImportantItemState) => void
   reorderImportant: (activeId: string, overId: string) => void
+  moveImportant: (todoId: string, direction: "up" | "down") => void
   updateTodoTextById: (todoId: string, text: string) => void
   toggleTodoById: (todoId: string) => boolean
 }
@@ -1319,6 +1320,21 @@ export const useJournalStore = create<JournalStore>()(
             persistImportantItem(next)
           })
         })
+      },
+
+      moveImportant: (todoId: string, direction: "up" | "down") => {
+        const { workspaces, importantItems } = get()
+        const { todos } = buildImportantTree(workspaces, importantItems)
+        const active = todos.find((todo) => todo.id === todoId)
+        if (!active) return
+
+        const siblings = todos.filter((todo) => todo.parentId === active.parentId)
+        const index = siblings.findIndex((todo) => todo.id === todoId)
+        const target = siblings[direction === "up" ? index - 1 : index + 1]
+        if (!target) return
+
+        // Adjacent overId makes reorderImportant perform an exact swap
+        get().reorderImportant(todoId, target.id)
       },
 
       updateTodoTextById: (todoId: string, text: string) => {

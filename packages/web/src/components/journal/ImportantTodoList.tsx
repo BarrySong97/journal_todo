@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type KeyboardEvent } from "react"
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react"
 import {
   DndContext,
   PointerSensor,
@@ -17,7 +17,9 @@ import {
 } from "@dnd-kit/sortable"
 import { toast } from "sonner"
 import { useJournal } from "@/hooks/useJournal"
+import { useTodoFocus } from "@/hooks/useTodoFocus"
 import { buildImportantTree } from "@/lib/utils/importantTree"
+import { FOCUS_IMPORTANT_LIST_EVENT } from "@/lib/utils/paneShortcuts"
 import { getVisibleTodos } from "./todoTreeUtils"
 import { SortableTodoItem } from "./SortableTodoItem"
 
@@ -28,12 +30,14 @@ export function ImportantTodoList() {
     workspaces,
     importantItems,
     reorderImportant,
+    moveImportant,
     updateTodoTextById,
     toggleTodoById,
     removeFromImportant,
     restoreImportantItem,
   } = useJournal()
   const [activeTodoId, setActiveTodoId] = useState<string | null>(null)
+  const { setTodoRef, focusTodo } = useTodoFocus()
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem(COLLAPSED_STORAGE_KEY) ?? "[]") as string[])
@@ -93,13 +97,49 @@ export function ImportantTodoList() {
     })
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>, todoId: string) => {
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault()
+      const direction = event.key === "ArrowUp" ? "up" : "down"
+
+      if (event.altKey && event.shiftKey) {
+        // Alt+Shift+↑/↓: move the item among its siblings (same as main list)
+        if (event.repeat) return
+        moveImportant(todoId, direction)
+        return
+      }
+
+      // Plain ↑/↓: move focus between visible items
+      const index = visibleTodos.findIndex((todo) => todo.id === todoId)
+      const next = visibleTodos[direction === "up" ? index - 1 : index + 1]
+      if (next) {
+        setActiveTodoId(next.id)
+        focusTodo(next.id)
+      }
+      return
+    }
     if (event.key === "Enter") event.preventDefault()
   }
 
+  // Cmd/Ctrl+Shift+I hands focus to the Important list
+  useEffect(() => {
+    const handleFocusRequest = () => {
+      const targetId =
+        activeTodoId && visibleTodos.some((todo) => todo.id === activeTodoId)
+          ? activeTodoId
+          : visibleTodos[0]?.id
+      if (!targetId) return
+      setActiveTodoId(targetId)
+      focusTodo(targetId, "end")
+    }
+
+    window.addEventListener(FOCUS_IMPORTANT_LIST_EVENT, handleFocusRequest)
+    return () => window.removeEventListener(FOCUS_IMPORTANT_LIST_EVENT, handleFocusRequest)
+  }, [activeTodoId, visibleTodos, focusTodo])
+
   if (allTodos.length === 0) {
     return (
-      <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+      <div data-pane="important" className="px-5 py-12 text-center text-sm text-muted-foreground">
         Star a task to keep it here.
       </div>
     )
@@ -111,7 +151,7 @@ export function ImportantTodoList() {
         items={visibleTodos.map((todo) => todo.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-0 px-2 pb-8">
+        <div data-pane="important" className="space-y-0 px-2 pb-8">
           {visibleTodos.map((todo) => (
             <SortableTodoItem
               key={todo.id}
@@ -127,7 +167,7 @@ export function ImportantTodoList() {
               onKeyDown={handleKeyDown}
               onPasteTodo={() => false}
               onFocus={setActiveTodoId}
-              inputRef={() => {}}
+              inputRef={setTodoRef}
               importanceState={todo.importanceState}
               onRemoveImportant={handleRemove}
             />

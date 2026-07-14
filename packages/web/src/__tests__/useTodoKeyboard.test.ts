@@ -28,6 +28,114 @@ describe("splitTodoTextForEnter", () => {
   })
 })
 
+describe("useTodoKeyboard arrow behavior", () => {
+  const renderKeyboard = (overrides: Partial<Parameters<typeof useTodoKeyboard>[0]> = {}) => {
+    const todos = [makeTodo("t1", "hello"), makeTodo("t2", "world")]
+    const moveTodo = vi.fn()
+    const onStartRowSelection = vi.fn()
+    const focusTodo = vi.fn()
+    const setActiveTodoId = vi.fn()
+    const { result } = renderHook(() =>
+      useTodoKeyboard({
+        todos,
+        activeTodoId: "t1",
+        focusTodo,
+        addTodo: vi.fn(),
+        updateTodoText: vi.fn(),
+        deleteTodo: vi.fn(),
+        moveTodo,
+        updateTodoLevel: vi.fn(),
+        setActiveTodoId,
+        selectedTodoIds: [],
+        copySelectedTodos: vi.fn(),
+        onStartRowSelection,
+        parentIds: new Set(),
+        collapsedIds: new Set(),
+        allTodos: todos,
+        ...overrides,
+      })
+    )
+    return { result, moveTodo, onStartRowSelection, focusTodo, setActiveTodoId }
+  }
+
+  const makeArrowEvent = (
+    key: "ArrowUp" | "ArrowDown",
+    textarea: HTMLTextAreaElement,
+    modifiers: Partial<ReactKeyboardEvent<HTMLTextAreaElement>> = {}
+  ) => ({
+    key,
+    altKey: false,
+    shiftKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    repeat: false,
+    preventDefault: vi.fn(),
+    target: textarea,
+    ...modifiers,
+  }) as unknown as ReactKeyboardEvent<HTMLTextAreaElement> & { preventDefault: ReturnType<typeof vi.fn> }
+
+  const makeTextarea = (value: string, selectionStart: number, selectionEnd = selectionStart) => {
+    const textarea = document.createElement("textarea")
+    textarea.value = value
+    textarea.selectionStart = selectionStart
+    textarea.selectionEnd = selectionEnd
+    return textarea
+  }
+
+  it("starts row selection on Shift+ArrowDown at end of text", () => {
+    const { result, onStartRowSelection } = renderKeyboard()
+    const event = makeArrowEvent("ArrowDown", makeTextarea("hello", 5), { shiftKey: true })
+
+    act(() => result.current.handleKeyDown(event, "t1"))
+
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(onStartRowSelection).toHaveBeenCalledWith("t1")
+  })
+
+  it("keeps native text selection on Shift+ArrowDown mid-text", () => {
+    const { result, onStartRowSelection } = renderKeyboard()
+    const event = makeArrowEvent("ArrowDown", makeTextarea("hello", 2), { shiftKey: true })
+
+    act(() => result.current.handleKeyDown(event, "t1"))
+
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(onStartRowSelection).not.toHaveBeenCalled()
+  })
+
+  it("starts row selection on Shift+ArrowUp at start of text", () => {
+    const { result, onStartRowSelection } = renderKeyboard()
+    const event = makeArrowEvent("ArrowUp", makeTextarea("hello", 0), { shiftKey: true })
+
+    act(() => result.current.handleKeyDown(event, "t1"))
+
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(onStartRowSelection).toHaveBeenCalledWith("t1")
+  })
+
+  it("still moves the todo on Alt+Shift+Arrow", () => {
+    const { result, moveTodo, onStartRowSelection } = renderKeyboard()
+    const event = makeArrowEvent("ArrowDown", makeTextarea("hello", 5), {
+      shiftKey: true,
+      altKey: true,
+    })
+
+    act(() => result.current.handleKeyDown(event, "t1"))
+
+    expect(moveTodo).toHaveBeenCalledWith("t1", "down")
+    expect(onStartRowSelection).not.toHaveBeenCalled()
+  })
+
+  it("moves focus on plain arrows", () => {
+    const { result, focusTodo, setActiveTodoId } = renderKeyboard()
+    const event = makeArrowEvent("ArrowDown", makeTextarea("hello", 5))
+
+    act(() => result.current.handleKeyDown(event, "t1"))
+
+    expect(setActiveTodoId).toHaveBeenCalledWith("t2")
+    expect(focusTodo).toHaveBeenCalledWith("t2")
+  })
+})
+
 describe("useTodoKeyboard Enter behavior", () => {
   beforeEach(() => {
     vi.useFakeTimers()

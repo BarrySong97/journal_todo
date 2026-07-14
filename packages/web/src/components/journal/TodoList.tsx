@@ -5,7 +5,15 @@
  * Adapted from dnd-kit SortableTree
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef, forwardRef } from "react"
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  forwardRef,
+  type PointerEvent as ReactPointerEvent,
+} from "react"
 import { createPortal } from "react-dom"
 import {
   DndContext,
@@ -44,12 +52,19 @@ import { useTodoKeyboard } from "@/hooks/useTodoKeyboard"
 import {
   getNextTodoIdAfterBulkDelete,
   getTodoShortcutPlatform,
-  hasDocumentTextSelection,
-  hasNativeTextSelection,
   isSelectedTodoCopyShortcut,
   isSelectedTodoCutShortcut,
   isSelectedTodoDeleteShortcut,
+  isTextEntryTarget,
 } from "@/lib/utils/multiSelectShortcuts"
+import {
+  expandSelectionToSubtrees,
+  extendSelectionByRow,
+  getRowRange,
+  getSweepSelection,
+  serializeSelectedTodos,
+} from "@/lib/utils/todoSelection"
+import { FOCUS_MAIN_LIST_EVENT } from "@/lib/utils/paneShortcuts"
 import { SimpleToast } from "@journal-todo/ui"
 import { toast } from "sonner"
 import { buildImportantTree } from "@/lib/utils/importantTree"
@@ -95,6 +110,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
     const [activeTodoId, setActiveTodoId] = useState<string | null>(null)
     const [selectedTodoIds, setSelectedTodoIds] = useState<string[]>([])
     const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null)
+    const [selectionFocusId, setSelectionFocusId] = useState<string | null>(null)
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
       try {
         const stored = localStorage.getItem(COLLAPSED_STORAGE_KEY)
@@ -123,6 +139,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
     const listRef = useRef<HTMLDivElement | null>(null)
     const prevWorkspaceIdRef = useRef<string | null>(null)
     const prevDateRef = useRef<string | null>(null)
+    const sweepRef = useRef<{ originId: string; active: boolean; lastOverId: string | null } | null>(null)
     const selectedTodoSet = useMemo(() => new Set(selectedTodoIds), [selectedTodoIds])
 
     // dnd-kit sensors
@@ -160,10 +177,19 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
       return visibleItems
     }, [flattenedTodos, collapsedIds, dragActiveId])
-    const selectedVisibleTodos = useMemo(
-      () => visibleTodos.filter((todo) => selectedTodoSet.has(todo.id)),
-      [visibleTodos, selectedTodoSet]
+    // Selecting a row always includes its whole subtree (collapsed or not)
+    const effectiveSelectedIds = useMemo(
+      () => expandSelectionToSubtrees(flattenedTodos, selectedTodoSet),
+      [flattenedTodos, selectedTodoSet]
     )
+    const effectiveSelectedTodos = useMemo(
+      () => flattenedTodos.filter((todo) => effectiveSelectedIds.has(todo.id)),
+      [flattenedTodos, effectiveSelectedIds]
+    )
+    const visibleTodosRef = useRef(visibleTodos)
+    useEffect(() => {
+      visibleTodosRef.current = visibleTodos
+    }, [visibleTodos])
 
     // Calculate projection using official algorithm
     const projected = useMemo(() => {
@@ -192,14 +218,24 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       })
     }, [])
 
+    const endSweep = useCallback(() => {
+      if (sweepRef.current?.active) {
+        document.body.style.userSelect = ""
+        document.body.style.webkitUserSelect = ""
+      }
+      sweepRef.current = null
+    }, [])
+
     // Drag handlers (following official SortableTree pattern exactly)
     const handleDragStart = useCallback(({ active }: DragStartEvent) => {
       setDragActiveId(String(active.id))
       setDragOverId(String(active.id))
       setSelectedTodoIds([])
       setSelectionAnchorId(null)
+      setSelectionFocusId(null)
+      endSweep()
       document.body.style.setProperty("cursor", "grabbing")
-    }, [])
+    }, [endSweep])
 
     const handleDragMove = useCallback(({ delta }: DragMoveEvent) => {
       setOffsetLeft(delta.x)
@@ -247,32 +283,131 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
     const clearSelection = useCallback(() => {
       setSelectedTodoIds([])
       setSelectionAnchorId(null)
+      setSelectionFocusId(null)
+    }, [])
+
+    // Entering row-selection mode blurs the editor and clears any native text
+    // selection, so "rows selected" and "editing text" can never coexist.
+    const beginRowSelection = useCallback(() => {
+      const active = document.activeElement
+      if (
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLInputElement
+      ) {
+        // blur() and window.getSelection() do NOT clear a textarea/input's own
+        // internal selectionStart/selectionEnd — collapse it explicitly, or a
+        // stale in-row selection can win a native Cmd+C over our row copy.
+        const pos = active.selectionEnd ?? 0
+        active.setSelectionRange(pos, pos)
+      }
+      if (active instanceof HTMLElement && active !== document.body) {
+        active.blur()
+      }
+      window.getSelection()?.removeAllRanges()
     }, [])
 
     const handleSelectTodo = useCallback(
       (todoId: string, shiftKey: boolean) => {
         if (!shiftKey) return
 
-        if (selectedTodoIds.length === 0 || selectionAnchorId === null) {
-          setSelectionAnchorId(todoId)
-          setSelectedTodoIds([todoId])
-        } else {
-          const anchorIndex = visibleTodos.findIndex((t) => t.id === selectionAnchorId)
-          const clickedIndex = visibleTodos.findIndex((t) => t.id === todoId)
+        beginRowSelection()
 
-          if (anchorIndex === -1 || clickedIndex === -1) {
-            setSelectionAnchorId(todoId)
-            setSelectedTodoIds([todoId])
+        const existingAnchor =
+          selectionAnchorId && visibleTodos.some((t) => t.id === selectionAnchorId)
+            ? selectionAnchorId
+            : null
+        // Seed the anchor from the active todo so a single shift+click selects
+        // the range from the currently focused row.
+        const seededAnchor =
+          existingAnchor ??
+          (activeTodoId && visibleTodos.some((t) => t.id === activeTodoId)
+            ? activeTodoId
+            : todoId)
+
+        setSelectionAnchorId(seededAnchor)
+        setSelectionFocusId(todoId)
+        setSelectedTodoIds(getRowRange(visibleTodos, seededAnchor, todoId))
+      },
+      [activeTodoId, beginRowSelection, selectionAnchorId, visibleTodos]
+    )
+
+    const handleStartRowSelection = useCallback(
+      (todoId: string) => {
+        beginRowSelection()
+        setSelectionAnchorId(todoId)
+        setSelectionFocusId(todoId)
+        setSelectedTodoIds([todoId])
+      },
+      [beginRowSelection]
+    )
+
+    // Drag-sweep selection: press on a row and drag into ANOTHER row to start
+    // selecting rows (dragging within the same row stays native text selection).
+    const handleListPointerDown = useCallback(
+      (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0 || event.shiftKey) return
+        const target = event.target as HTMLElement
+        // Buttons own their gestures: drag handle (dnd-kit), checkbox, chevron, star
+        if (target.closest('button, [role="checkbox"]')) return
+        const originId = target
+          .closest("[data-todo-id]")
+          ?.getAttribute("data-todo-id")
+        if (!originId) return
+
+        sweepRef.current = { originId, active: false, lastOverId: null }
+
+        function handlePointerMove(e: PointerEvent) {
+          const sweep = sweepRef.current
+          if (!sweep) {
+            cleanup()
             return
           }
 
-          const start = Math.min(anchorIndex, clickedIndex)
-          const end = Math.max(anchorIndex, clickedIndex)
-          const rangeIds = visibleTodos.slice(start, end + 1).map((t) => t.id)
-          setSelectedTodoIds(rangeIds)
+          const rows = visibleTodosRef.current
+          let overId =
+            document
+              .elementFromPoint(e.clientX, e.clientY)
+              ?.closest("[data-todo-id]")
+              ?.getAttribute("data-todo-id") ?? null
+          if (!overId && sweep.active && listRef.current) {
+            // Clamp: above the list selects to the first row, below to the last
+            const rect = listRef.current.getBoundingClientRect()
+            if (e.clientY < rect.top) overId = rows[0]?.id ?? null
+            else if (e.clientY > rect.bottom) overId = rows[rows.length - 1]?.id ?? null
+            else overId = sweep.lastOverId
+          }
+
+          if (!sweep.active) {
+            // Activation is strictly "pointer entered a different row" —
+            // never a pixel threshold.
+            if (getSweepSelection(rows, sweep.originId, overId) === null) return
+            sweep.active = true
+            beginRowSelection()
+            document.body.style.userSelect = "none"
+            document.body.style.webkitUserSelect = "none"
+            setSelectionAnchorId(sweep.originId)
+          }
+
+          if (!overId) return
+          sweep.lastOverId = overId
+          setSelectionFocusId(overId)
+          setSelectedTodoIds(getRowRange(rows, sweep.originId, overId))
         }
+
+        function cleanup() {
+          window.removeEventListener("pointermove", handlePointerMove)
+          window.removeEventListener("pointerup", cleanup)
+          window.removeEventListener("pointercancel", cleanup)
+          window.removeEventListener("blur", cleanup)
+          endSweep()
+        }
+
+        window.addEventListener("pointermove", handlePointerMove)
+        window.addEventListener("pointerup", cleanup)
+        window.addEventListener("pointercancel", cleanup)
+        window.addEventListener("blur", cleanup)
       },
-      [selectedTodoIds, selectionAnchorId, visibleTodos]
+      [beginRowSelection, endSweep]
     )
 
     const writeTextToClipboard = useCallback(async (payload: string) => {
@@ -296,16 +431,10 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       return copied
     }, [])
 
-    const getSelectedTodoPayload = useCallback(() => {
-      const INDENT = "  "
-      const texts = selectedVisibleTodos
-        .map((todo) => `${INDENT.repeat(todo.level)}${todo.text}`)
-        .filter((text) => text.trim().length > 0)
-
-      if (texts.length === 0) return null
-
-      return texts.join("\n")
-    }, [selectedVisibleTodos])
+    const getSelectedTodoPayload = useCallback(
+      () => serializeSelectedTodos(flattenedTodos, effectiveSelectedIds),
+      [flattenedTodos, effectiveSelectedIds]
+    )
 
     const copySelectedTodoText = useCallback(async (showToast = true) => {
       const payload = getSelectedTodoPayload()
@@ -319,32 +448,38 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
       if (showToast) {
         toast.success(
-          `Copied ${selectedVisibleTodos.length} item${selectedVisibleTodos.length > 1 ? "s" : ""}`
+          `Copied ${effectiveSelectedTodos.length} item${effectiveSelectedTodos.length > 1 ? "s" : ""}`
         )
       }
       return true
-    }, [getSelectedTodoPayload, selectedVisibleTodos.length, writeTextToClipboard])
+    }, [getSelectedTodoPayload, effectiveSelectedTodos.length, writeTextToClipboard])
 
     const copySelectedTodos = useCallback(() => {
       void copySelectedTodoText(true)
     }, [copySelectedTodoText])
 
     const removeSelectedTodos = useCallback((showToast = true) => {
-      if (selectedVisibleTodos.length === 0) return false
+      if (effectiveSelectedTodos.length === 0) return false
 
-      const selectedIds = new Set(selectedVisibleTodos.map((todo) => todo.id))
-      const nextTodoId = getNextTodoIdAfterBulkDelete(visibleTodos, selectedIds)
+      // Bulk-deleting every todo on the page would leave nothing to type
+      // into — single-item delete already guards against this (see
+      // useTodoKeyboard's "todos.length > 1" checks); mirror that here by
+      // leaving one fresh empty todo behind.
+      const deletesEverything = effectiveSelectedTodos.length === todos.length
+      const nextTodoId = getNextTodoIdAfterBulkDelete(visibleTodos, effectiveSelectedIds)
 
-      selectedVisibleTodos.forEach((todo) => {
+      effectiveSelectedTodos.forEach((todo) => {
         deleteTodo(todo.id)
       })
 
       clearSelection()
 
-      if (nextTodoId) {
-        setActiveTodoId(nextTodoId)
+      const focusId = deletesEverything ? addTodo() : nextTodoId
+
+      if (focusId) {
+        setActiveTodoId(focusId)
         setTimeout(() => {
-          focusTodo(nextTodoId)
+          focusTodo(focusId)
         }, 0)
       } else {
         setActiveTodoId(null)
@@ -352,30 +487,33 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
       if (showToast) {
         toast.success(
-          `Deleted ${selectedVisibleTodos.length} item${selectedVisibleTodos.length > 1 ? "s" : ""}`
+          `Deleted ${effectiveSelectedTodos.length} item${effectiveSelectedTodos.length > 1 ? "s" : ""}`
         )
       }
 
       return true
     }, [
+      addTodo,
       clearSelection,
       deleteTodo,
+      todos,
+      effectiveSelectedIds,
+      effectiveSelectedTodos,
       focusTodo,
-      selectedVisibleTodos,
       setActiveTodoId,
       visibleTodos,
     ])
 
     const cutSelectedTodos = useCallback(async () => {
-      if (selectedVisibleTodos.length === 0) return false
+      if (effectiveSelectedTodos.length === 0) return false
 
       const copied = await copySelectedTodoText(false)
       if (!copied) return false
 
       removeSelectedTodos(false)
-      toast.success(`Cut ${selectedVisibleTodos.length} item${selectedVisibleTodos.length > 1 ? "s" : ""}`)
+      toast.success(`Cut ${effectiveSelectedTodos.length} item${effectiveSelectedTodos.length > 1 ? "s" : ""}`)
       return true
-    }, [copySelectedTodoText, removeSelectedTodos, selectedVisibleTodos.length])
+    }, [copySelectedTodoText, removeSelectedTodos, effectiveSelectedTodos.length])
 
     // Keyboard handling
     const { handleKeyDown } = useTodoKeyboard({
@@ -390,6 +528,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       setActiveTodoId,
       selectedTodoIds,
       copySelectedTodos,
+      onStartRowSelection: handleStartRowSelection,
       parentIds,
       collapsedIds,
       allTodos: flattenedTodos,
@@ -445,13 +584,38 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
 
     useEffect(() => {
       const handleMultiSelectShortcut = (event: KeyboardEvent) => {
-        if (selectedVisibleTodos.length === 0) return
+        if (selectedTodoIds.length === 0) return
 
-        const hasTextSelection =
-          hasNativeTextSelection(event.target) || hasDocumentTextSelection()
+        // Shift+Arrow extends/shrinks the row selection while row mode is on
+        const arrowDirection =
+          event.key === "ArrowUp" ? "up" : event.key === "ArrowDown" ? "down" : null
+        if (
+          arrowDirection &&
+          event.shiftKey &&
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.defaultPrevented
+        ) {
+          if (isTextEntryTarget(event.target)) return
+          event.preventDefault()
+          event.stopPropagation()
+          const anchor = selectionAnchorId ?? selectedTodoIds[0]
+          const focus = selectionFocusId ?? anchor
+          const result = extendSelectionByRow(visibleTodos, anchor, focus, arrowDirection)
+          if (result) {
+            setSelectionFocusId(result.focusId)
+            setSelectedTodoIds(result.selectedIds)
+            document
+              .querySelector(`[data-todo-id="${result.focusId}"]`)
+              ?.scrollIntoView({ block: "nearest" })
+          }
+          return
+        }
 
+        // A row selection is active (guarded above) — it always wins over any
+        // stray native text selection, so no hasNativeTextSelection check here.
         if (isSelectedTodoCopyShortcut(event, shortcutPlatform)) {
-          if (hasTextSelection) return
           event.preventDefault()
           event.stopPropagation()
           void copySelectedTodoText(true)
@@ -459,7 +623,6 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
         }
 
         if (isSelectedTodoCutShortcut(event, shortcutPlatform)) {
-          if (hasTextSelection) return
           event.preventDefault()
           event.stopPropagation()
           void cutSelectedTodos()
@@ -467,7 +630,8 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
         }
 
         if (isSelectedTodoDeleteShortcut(event, shortcutPlatform)) {
-          if (hasTextSelection) return
+          // Typing in a text field must never bulk-delete rows
+          if (isTextEntryTarget(event.target)) return
           event.preventDefault()
           event.stopPropagation()
           removeSelectedTodos(true)
@@ -480,8 +644,11 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       copySelectedTodoText,
       cutSelectedTodos,
       removeSelectedTodos,
-      selectedVisibleTodos.length,
+      selectedTodoIds,
+      selectionAnchorId,
+      selectionFocusId,
       shortcutPlatform,
+      visibleTodos,
     ])
 
     // Escape to clear selection
@@ -489,13 +656,30 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
       const handleEscape = (event: KeyboardEvent) => {
         if (event.key === "Escape" && selectedTodoIds.length > 0) {
           event.preventDefault()
+          endSweep()
           clearSelection()
         }
       }
 
       window.addEventListener("keydown", handleEscape)
       return () => window.removeEventListener("keydown", handleEscape)
-    }, [selectedTodoIds.length, clearSelection])
+    }, [selectedTodoIds.length, clearSelection, endSweep])
+
+    // Cmd/Ctrl+Shift+I hands focus back to the main list
+    useEffect(() => {
+      const handleFocusRequest = () => {
+        const targetId =
+          activeTodoId && visibleTodos.some((t) => t.id === activeTodoId)
+            ? activeTodoId
+            : visibleTodos[0]?.id
+        if (!targetId) return
+        setActiveTodoId(targetId)
+        focusTodo(targetId, "end")
+      }
+
+      window.addEventListener(FOCUS_MAIN_LIST_EVENT, handleFocusRequest)
+      return () => window.removeEventListener(FOCUS_MAIN_LIST_EVENT, handleFocusRequest)
+    }, [activeTodoId, visibleTodos, focusTodo])
 
     useEffect(() => {
       const handleToggleTodo = (event: Event) => {
@@ -554,7 +738,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
         onDragCancel={handleDragCancel}
       >
         <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
-          <div ref={setRefs} className="space-y-0">
+          <div ref={setRefs} className="space-y-0" onPointerDown={handleListPointerDown}>
             {visibleTodos.map((todo) => (
               <SortableTodoItem
                 key={todo.id}
@@ -562,7 +746,7 @@ export const TodoList = forwardRef<HTMLDivElement, TodoListProps>(
                 // Key: active item uses projected.depth, others use their own depth
                 depth={todo.id === dragActiveId && projected ? projected.depth : todo.depth}
                 isActive={activeTodoId === todo.id}
-                isSelected={selectedTodoSet.has(todo.id)}
+                isSelected={effectiveSelectedIds.has(todo.id)}
                 isParent={parentIds.has(todo.id)}
                 isCollapsed={collapsedIds.has(todo.id)}
                 indicator={true}

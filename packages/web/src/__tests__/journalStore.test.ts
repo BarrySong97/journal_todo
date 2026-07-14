@@ -480,6 +480,64 @@ describe("journalStore Important actions", () => {
     expect(sortByOrder(next.workspaces[workspaceId].pages[dateKey].todos).map((todo) => todo.id))
       .toEqual(["parent", "first", "second"])
   })
+
+  it("moveImportant moves pinned roots up and down", () => {
+    setStoreState([
+      makeTodo("one", "a0", 0),
+      makeTodo("two", "a1", 0),
+      makeTodo("three", "a2", 0),
+    ])
+    const store = useJournalStore.getState()
+    store.toggleImportant("one")
+    store.toggleImportant("two")
+    store.toggleImportant("three")
+
+    useJournalStore.getState().moveImportant("three", "up")
+    let state = useJournalStore.getState()
+    expect(buildImportantTree(state.workspaces, state.importantItems).todos.map((todo) => todo.id))
+      .toEqual(["one", "three", "two"])
+
+    useJournalStore.getState().moveImportant("one", "down")
+    state = useJournalStore.getState()
+    expect(buildImportantTree(state.workspaces, state.importantItems).todos.map((todo) => todo.id))
+      .toEqual(["three", "one", "two"])
+  })
+
+  it("moveImportant moves nested siblings without changing source order", () => {
+    const { workspaceId, dateKey } = setStoreState([
+      makeTodo("parent", "a0", 0),
+      makeTodo("first", "a1", 1, "parent"),
+      makeTodo("second", "a2", 1, "parent"),
+    ])
+    const store = useJournalStore.getState()
+    store.toggleImportant("parent")
+
+    useJournalStore.getState().moveImportant("second", "up")
+
+    const next = useJournalStore.getState()
+    expect(buildImportantTree(next.workspaces, next.importantItems).todos.map((todo) => todo.id))
+      .toEqual(["parent", "second", "first"])
+    expect(sortByOrder(next.workspaces[workspaceId].pages[dateKey].todos).map((todo) => todo.id))
+      .toEqual(["parent", "first", "second"])
+  })
+
+  it("moveImportant no-ops at the edges and for unknown ids", () => {
+    setStoreState([
+      makeTodo("one", "a0", 0),
+      makeTodo("two", "a1", 0),
+    ])
+    const store = useJournalStore.getState()
+    store.toggleImportant("one")
+    store.toggleImportant("two")
+
+    useJournalStore.getState().moveImportant("one", "up")
+    useJournalStore.getState().moveImportant("two", "down")
+    useJournalStore.getState().moveImportant("missing", "up")
+
+    const state = useJournalStore.getState()
+    expect(buildImportantTree(state.workspaces, state.importantItems).todos.map((todo) => todo.id))
+      .toEqual(["one", "two"])
+  })
 })
 
 describe("journalStore paste handling", () => {

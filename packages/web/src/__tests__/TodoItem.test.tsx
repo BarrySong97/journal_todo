@@ -84,4 +84,60 @@ describe("TodoItem UI", () => {
     expect(onPasteTodo).toHaveBeenCalledWith("todo-1", "line1\nline2", 6, 11)
     expect(pasteEvent.defaultPrevented).toBe(true)
   })
+
+  it("selects the row on shift+mousedown and prevents default", () => {
+    const onSelect = vi.fn()
+
+    const { container } = render(
+      <TodoItem
+        todo={makeTodo()}
+        depth={0}
+        isActive={false}
+        isSelected={false}
+        isParent={false}
+        isCollapsed={false}
+        onTextChange={vi.fn()}
+        onToggle={vi.fn()}
+        onKeyDown={vi.fn()}
+        onPasteTodo={vi.fn().mockReturnValue(false)}
+        onFocus={vi.fn()}
+        onSelect={onSelect}
+        inputRef={vi.fn()}
+      />
+    )
+
+    const wrapper = container.querySelector('[data-todo-id="todo-1"]') as HTMLDivElement
+    const mouseDownEvent = createEvent.mouseDown(wrapper, { shiftKey: true })
+    fireEvent(wrapper, mouseDownEvent)
+
+    expect(onSelect).toHaveBeenCalledWith("todo-1", true)
+    expect(mouseDownEvent.defaultPrevented).toBe(true)
+  })
+
+  it("does not select the row on plain mousedown", () => {
+    const onSelect = vi.fn()
+
+    const { container } = render(
+      <TodoItem
+        todo={makeTodo()}
+        depth={0}
+        isActive={false}
+        isSelected={false}
+        isParent={false}
+        isCollapsed={false}
+        onTextChange={vi.fn()}
+        onToggle={vi.fn()}
+        onKeyDown={vi.fn()}
+        onPasteTodo={vi.fn().mockReturnValue(false)}
+        onFocus={vi.fn()}
+        onSelect={onSelect}
+        inputRef={vi.fn()}
+      />
+    )
+
+    const wrapper = container.querySelector('[data-todo-id="todo-1"]') as HTMLDivElement
+    fireEvent.mouseDown(wrapper)
+
+    expect(onSelect).not.toHaveBeenCalled()
+  })
 })

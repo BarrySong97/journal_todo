@@ -15,6 +15,7 @@ import {
   isSelectedTodoCopyShortcut,
   isSelectedTodoCutShortcut,
   isSelectedTodoDeleteShortcut,
+  isTextEntryTarget,
 } from "@/lib/utils/multiSelectShortcuts"
 
 const mockedIsMac = vi.mocked(isMac)
@@ -98,6 +99,18 @@ describe("multiSelectShortcuts", () => {
     textarea.selectionStart = 2
     textarea.selectionEnd = 2
     expect(hasNativeTextSelection(textarea)).toBe(false)
+  })
+
+  it("identifies text entry targets", () => {
+    expect(isTextEntryTarget(document.createElement("textarea"))).toBe(true)
+    expect(isTextEntryTarget(document.createElement("input"))).toBe(true)
+
+    const editable = document.createElement("div")
+    editable.setAttribute("contenteditable", "true")
+    expect(isTextEntryTarget(editable)).toBe(true)
+
+    expect(isTextEntryTarget(document.body)).toBe(false)
+    expect(isTextEntryTarget(null)).toBe(false)
   })
 
   it("chooses the next focus target after bulk delete", () => {

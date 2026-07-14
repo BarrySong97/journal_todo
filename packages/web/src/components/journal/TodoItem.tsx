@@ -121,8 +121,10 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
       onToggleCollapse?.(todo.id)
     }
 
-    const handleWrapperClick = (e: ReactMouseEvent<HTMLDivElement>) => {
-      if (!e.shiftKey || !onSelect) return
+    const handleWrapperMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+      // Prevent mousedown (not just click) so shift+click never extends the
+      // native DOM selection or steals focus from the current textarea.
+      if (e.defaultPrevented || !e.shiftKey || !onSelect) return
       e.preventDefault()
       onSelect(todo.id, true)
     }
@@ -165,7 +167,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(
           marginBottom: -1,
         } as CSSProperties}
         data-todo-id={todo.id}
-        onClick={handleWrapperClick}
+        onMouseDown={handleWrapperMouseDown}
         className={cn(
           "group box-border list-none",
           // Clone styling (for DragOverlay)

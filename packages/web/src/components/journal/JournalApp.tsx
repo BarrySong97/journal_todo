@@ -17,6 +17,12 @@ import {
 } from "@journal-todo/ui"
 import { useJournal } from "@/hooks/useJournal"
 import { useRolloverMode } from "@/hooks/useRolloverMode"
+import { getTodoShortcutPlatform } from "@/lib/utils/multiSelectShortcuts"
+import {
+  FOCUS_IMPORTANT_LIST_EVENT,
+  FOCUS_MAIN_LIST_EVENT,
+  isPaneFocusToggleShortcut,
+} from "@/lib/utils/paneShortcuts"
 import { ImportantTodoList } from "./ImportantTodoList"
 
 interface JournalAppProps {
@@ -63,6 +69,30 @@ export function JournalApp({
     }, 2500)
     return () => window.clearTimeout(timer)
   }, [toastOpen])
+
+  // Cmd/Ctrl+Shift+I toggles focus between the main list and the Important list
+  useEffect(() => {
+    const platform = getTodoShortcutPlatform()
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!isPaneFocusToggleShortcut(event, platform)) return
+      // Don't steal focus from dialogs (command palette, alerts, ...)
+      if (document.activeElement?.closest('[role="dialog"]')) return
+      event.preventDefault()
+
+      const inImportant = isWide
+        ? document.activeElement?.closest('[data-pane="important"]') != null
+        : narrowView === "important"
+      const targetEvent = inImportant ? FOCUS_MAIN_LIST_EVENT : FOCUS_IMPORTANT_LIST_EVENT
+      if (!isWide) {
+        onNarrowViewChange(inImportant ? "workspace" : "important")
+      }
+      // Let a narrow-mode view switch mount the target pane before focusing
+      setTimeout(() => window.dispatchEvent(new CustomEvent(targetEvent)), 0)
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isWide, narrowView, onNarrowViewChange])
 
   const setRatioFromClientX = (clientX: number) => {
     const rect = panesRef.current?.getBoundingClientRect()

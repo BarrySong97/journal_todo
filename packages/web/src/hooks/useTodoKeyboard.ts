@@ -17,6 +17,7 @@ interface UseTodoKeyboardProps {
   setActiveTodoId: (todoId: string | null) => void
   selectedTodoIds: string[]
   copySelectedTodos: () => void
+  onStartRowSelection?: (todoId: string) => void
   parentIds: Set<string>
   collapsedIds: Set<string>
   allTodos: TodoItem[]
@@ -48,6 +49,7 @@ export function useTodoKeyboard({
   setActiveTodoId,
   selectedTodoIds,
   copySelectedTodos,
+  onStartRowSelection,
   parentIds,
   collapsedIds,
   allTodos,
@@ -105,34 +107,57 @@ export function useTodoKeyboard({
 
       switch (e.key) {
         case "ArrowUp":
-          e.preventDefault()
           if (e.altKey && e.shiftKey) {
-            if (e.repeat) break
             // Alt+Shift+↑: Move todo position up
+            e.preventDefault()
+            if (e.repeat) break
             moveTodo(todoId, "up")
-          } else {
-            // Regular ↑: Move focus to previous todo
-            if (currentIndex > 0) {
-              const prevTodo = todos[currentIndex - 1]
-              setActiveTodoId(prevTodo.id)
-              focusTodo(prevTodo.id)
+            break
+          }
+          if (e.shiftKey) {
+            if (e.ctrlKey || e.metaKey) break
+            // Shift+↑ at the very start of the text enters row-selection mode
+            // (selects the current row); mid-text it stays native text selection.
+            const input = e.target as HTMLTextAreaElement
+            if (input.selectionStart === 0 && onStartRowSelection) {
+              e.preventDefault()
+              onStartRowSelection(todoId)
             }
+            break
+          }
+          e.preventDefault()
+          // Regular ↑: Move focus to previous todo
+          if (currentIndex > 0) {
+            const prevTodo = todos[currentIndex - 1]
+            setActiveTodoId(prevTodo.id)
+            focusTodo(prevTodo.id)
           }
           break
 
         case "ArrowDown":
-          e.preventDefault()
           if (e.altKey && e.shiftKey) {
-            if (e.repeat) break
             // Alt+Shift+↓: Move todo position down
+            e.preventDefault()
+            if (e.repeat) break
             moveTodo(todoId, "down")
-          } else {
-            // Regular ↓: Move focus to next todo
-            if (currentIndex < todos.length - 1) {
-              const nextTodo = todos[currentIndex + 1]
-              setActiveTodoId(nextTodo.id)
-              focusTodo(nextTodo.id)
+            break
+          }
+          if (e.shiftKey) {
+            if (e.ctrlKey || e.metaKey) break
+            // Shift+↓ at the very end of the text enters row-selection mode
+            const input = e.target as HTMLTextAreaElement
+            if (input.selectionEnd === input.value.length && onStartRowSelection) {
+              e.preventDefault()
+              onStartRowSelection(todoId)
             }
+            break
+          }
+          e.preventDefault()
+          // Regular ↓: Move focus to next todo
+          if (currentIndex < todos.length - 1) {
+            const nextTodo = todos[currentIndex + 1]
+            setActiveTodoId(nextTodo.id)
+            focusTodo(nextTodo.id)
           }
           break
 
@@ -321,6 +346,7 @@ export function useTodoKeyboard({
       setActiveTodoId,
       selectedTodoIds,
       copySelectedTodos,
+      onStartRowSelection,
       parentIds,
       collapsedIds,
       allTodos,
