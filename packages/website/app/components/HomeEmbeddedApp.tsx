@@ -33,6 +33,7 @@ export function HomeEmbeddedApp() {
         onReady={() => setIsAppReady(true)}
         initialTodos={DEFAULT_EMBEDDED_TODOS}
         seedStorageKey="journal-website-home-seeded-v1"
+        forceSinglePane
       />
       <div
         className={`absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-b from-[#f3f3f3] to-[#ececec] transition-opacity duration-300 ${isAppReady ? "pointer-events-none opacity-0" : "opacity-100"}`}

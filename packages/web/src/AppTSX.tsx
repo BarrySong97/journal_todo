@@ -13,11 +13,17 @@ interface AppTSXProps {
   onReady?: () => void
   initialTodos?: string[]
   seedStorageKey?: string
+  forceSinglePane?: boolean
 }
 
 const DEFAULT_SEED_STORAGE_KEY = "journal-embedded-seeded-v1"
 
-export function AppTSX({ onReady, initialTodos = [], seedStorageKey = DEFAULT_SEED_STORAGE_KEY }: AppTSXProps) {
+export function AppTSX({
+  onReady,
+  initialTodos = [],
+  seedStorageKey = DEFAULT_SEED_STORAGE_KEY,
+  forceSinglePane = false,
+}: AppTSXProps) {
   const { goToToday, currentWorkspace, getCurrentPage, updateTodoText, addTodo } = useJournal()
   const seedAttemptedRef = useRef(false)
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 725)
@@ -27,6 +33,7 @@ export function AppTSX({ onReady, initialTodos = [], seedStorageKey = DEFAULT_SE
     return Number.isFinite(stored) ? stored : 50
   })
   const wasWideRef = useRef(isWide)
+  const effectiveIsWide = forceSinglePane ? false : isWide
 
   useEffect(() => {
     goToToday()
@@ -108,7 +115,7 @@ export function AppTSX({ onReady, initialTodos = [], seedStorageKey = DEFAULT_SE
   return (
     <div className="h-full overflow-hidden flex flex-col bg-background">
       <header className="flex items-center h-9" style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
-        {isWide ? (
+        {effectiveIsWide ? (
           <>
             <div className="flex h-full items-center" style={{ width: `${splitRatio}%` }}>
               <DateNavigation />
@@ -125,7 +132,7 @@ export function AppTSX({ onReady, initialTodos = [], seedStorageKey = DEFAULT_SE
         )}
       </header>
       <JournalApp
-        isWide={isWide}
+        isWide={effectiveIsWide}
         narrowView={narrowView}
         onNarrowViewChange={setNarrowView}
         splitRatio={splitRatio}
