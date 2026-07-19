@@ -85,7 +85,9 @@ const AutoUpdateTracker = () => {
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null)
   const [isInstalling, setIsInstalling] = useState(false)
   const toastIdRef = useRef<string | number | null>(null)
-  const isProductionRuntime = import.meta.env.PROD
+  const isProductionRuntime = typeof import.meta.env !== "undefined"
+    ? import.meta.env.PROD
+    : process.env.NODE_ENV === "production"
 
   useEffect(() => {
     let isActive = true
