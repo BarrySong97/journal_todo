@@ -42,7 +42,7 @@ Usage:
   ./release.sh push
   ./release.sh build
   ./release.sh upload [--latest-json-only]
-  ./release.sh notes
+  ./release.sh notes [v<version>]
   ./release.sh all [patch|minor|major]
 USAGE
 }
@@ -567,11 +567,26 @@ step_upload() {
 step_notes() {
   require_tool gh
 
+  local requested_tag="${1:-}"
   local version tag gh_json
-  version=$(get_current_version)
-  tag="v${version}"
 
-  if ! gh_json=$(gh release view "$tag" --repo "$GH_REPO" --json assets 2>/dev/null); then
+  if [[ -z "$requested_tag" ]]; then
+    version=$(get_current_version)
+    tag="v${version}"
+  else
+    tag="$requested_tag"
+    if [[ "$tag" != v* ]]; then
+      tag="v${tag}"
+    fi
+    if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      echo -e "${RED}Invalid release tag: ${requested_tag}${NC}"
+      echo "Expected v<major>.<minor>.<patch> (for example v0.1.24)"
+      exit 1
+    fi
+    version="${tag#v}"
+  fi
+
+  if ! gh_json=$(gh release view "$tag" --repo "$GH_REPO" --json assets,publishedAt 2>/dev/null); then
     echo -e "${RED}Release ${tag} not found on GitHub.${NC}"
     echo "Run tag/push/upload first, then retry: ./release.sh notes"
     exit 1
@@ -591,6 +606,7 @@ const assets = (json.assets || []).map((asset) => asset?.name).filter(Boolean)
 const repo = process.env.GH_REPO
 const version = process.env.RELEASE_VERSION
 const outputPath = process.env.OUTPUT_PATH
+const generatedAt = json.publishedAt || new Date().toISOString()
 
 const isDmg = (name) => /\.dmg$/i.test(name) && !/\.sig$/i.test(name)
 const isExe = (name) => /\.exe$/i.test(name) && !/\.sig$/i.test(name)
@@ -623,7 +639,7 @@ const buildUrl = (assetName) =>
 
 const downloads = {
   version,
-  generatedAt: new Date().toISOString(),
+  generatedAt,
   groups: [
     {
       category: "macOS",
@@ -656,12 +672,14 @@ const downloads = {
 fs.writeFileSync(outputPath, `${JSON.stringify(downloads, null, 2)}\n`)
 NODE
 
+  GH_RELEASE_JSON="$gh_json" \
   OUTPUT_PATH="$RELEASE_NOTES_JSON_PATH" \
   node - <<'NODE'
 const { execSync } = require("child_process")
 const fs = require("fs")
 
 const outputPath = process.env.OUTPUT_PATH
+const release = JSON.parse(process.env.GH_RELEASE_JSON || "{}")
 
 const tagOutput = execSync("git tag --list 'v*' --sort=-version:refname", {
   encoding: "utf8",
@@ -717,7 +735,7 @@ const releases = tags.map((tag, index) => {
 })
 
 const payload = {
-  generatedAt: new Date().toISOString(),
+  generatedAt: release.publishedAt || releases[0]?.date || new Date().toISOString(),
   releases,
 }
 
@@ -785,12 +803,12 @@ main() {
       fi
       ;;
     notes)
-      if [[ $# -ne 0 ]]; then
+      if [[ $# -gt 1 ]]; then
         echo -e "${RED}Unknown option for notes: $*${NC}"
         print_usage
         exit 1
       fi
-      step_notes
+      step_notes "${1:-}"
       ;;
     all)
       step_all "$@"

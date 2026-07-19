@@ -32,7 +32,7 @@ The repository uses one release helper:
 ./release.sh build           # optional local build for diagnostics
 ./release.sh upload          # optional manual upload/recovery
 ./release.sh upload --latest-json-only  # optional updater metadata recovery
-./release.sh notes           # generate website downloads/release-notes JSON from GitHub release + git tags
+./release.sh notes [v0.1.24] # generate website downloads/release-notes JSON from GitHub release + git tags
 ./release.sh all patch       # prepare, commit, tag, and push; GitHub Actions publishes the release
 ```
 
@@ -70,6 +70,16 @@ If you only need to refresh website downloads and release notes data:
 ```bash
 ./release.sh notes
 ```
+
+You can also pass an explicit tag when refreshing a release that differs from
+the version in the current checkout:
+
+```bash
+./release.sh notes v0.1.24
+```
+
+After a GitHub Actions release finishes, the release workflow runs this step
+automatically and commits the generated website data to `main`.
 
 The script will:
 - fetch existing assets from the remote release

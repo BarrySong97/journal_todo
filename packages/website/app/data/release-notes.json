@@ -1,6 +1,134 @@
 {
-  "generatedAt": "2026-03-30T02:07:01.090Z",
+  "generatedAt": "2026-07-15T05:56:41Z",
   "releases": [
+    {
+      "version": "v0.1.24",
+      "date": "2026-07-15T13:50:13+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.24"
+        },
+        {
+          "type": "new",
+          "text": "add multi-select copy"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.23",
+      "date": "2026-07-14T14:58:15+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.23"
+        },
+        {
+          "type": "new",
+          "text": "fix multi-select copy/cut/delete and add row sweep selection"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.22",
+      "date": "2026-07-13T21:17:29+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.22"
+        },
+        {
+          "type": "fix",
+          "text": "surface installation failures"
+        },
+        {
+          "type": "other",
+          "text": "normalize updater download URLs"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.21",
+      "date": "2026-07-13T17:34:43+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "add macOS signing and notarization"
+        },
+        {
+          "type": "other",
+          "text": "publish desktop releases with GitHub Actions"
+        },
+        {
+          "type": "other",
+          "text": "bump version to v0.1.21"
+        },
+        {
+          "type": "fix",
+          "text": "lower macOS traffic lights"
+        },
+        {
+          "type": "new",
+          "text": "add important workspace"
+        },
+        {
+          "type": "other",
+          "text": "Merge branch 'BarrySong97/sync-scripts'"
+        },
+        {
+          "type": "other",
+          "text": "update release data for v0.1.20"
+        },
+        {
+          "type": "other",
+          "text": "bump version to v0.1.20"
+        },
+        {
+          "type": "new",
+          "text": "add cut and delete shortcuts for selected todos"
+        },
+        {
+          "type": "other",
+          "text": "add desktop worktree scripts"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.20",
+      "date": "2026-04-16T10:30:50+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.20"
+        },
+        {
+          "type": "new",
+          "text": "add cut and delete shortcuts for selected todos"
+        },
+        {
+          "type": "other",
+          "text": "update release data for v0.1.19"
+        }
+      ]
+    },
+    {
+      "version": "v0.1.19",
+      "date": "2026-03-31T10:35:00+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.19"
+        },
+        {
+          "type": "new",
+          "text": "replace drag-to-select with Shift+Click selection for todos"
+        },
+        {
+          "type": "other",
+          "text": "update release data for v0.1.18"
+        }
+      ]
+    },
     {
       "version": "v0.1.18",
       "date": "2026-03-30T09:55:52+08:00",

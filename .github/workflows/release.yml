@@ -190,3 +190,55 @@ jobs:
           gh release upload "$RELEASE_TAG" "$updater_dir/latest.json" \
             --repo "$REPOSITORY" \
             --clobber
+
+  update-website-data:
+    name: Update website release data
+    needs: normalize-updater-json
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+    steps:
+      - name: Check out main with release tags
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check whether this is the current release
+        id: current-release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current_tag="v$(node -p "require('./package.json').version")"
+          if [[ "$RELEASE_TAG" == "$current_tag" ]]; then
+            echo "should-update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should-update=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping website update: main is $current_tag, workflow release is $RELEASE_TAG."
+          fi
+
+      - name: Generate download links and release notes
+        if: steps.current-release.outputs.should-update == 'true'
+        run: ./release.sh notes "$RELEASE_TAG"
+
+      - name: Commit website release data
+        if: steps.current-release.outputs.should-update == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- packages/website/app/data; then
+            echo "Website release data is already current."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/website/app/data/downloads.json \
+            packages/website/app/data/release-notes.json
+          git commit -m "chore(website): update release data for $RELEASE_TAG"
+          git pull --rebase origin main
+          git push origin HEAD:main
