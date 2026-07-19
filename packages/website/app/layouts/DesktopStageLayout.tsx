@@ -9,7 +9,7 @@ interface DesktopStageLayoutProps {
   rightMode?: "framed" | "full"
 }
 
-const themeVars: CSSProperties = {
+export const stageThemeVars: CSSProperties = {
   "--bg-pink": "#FFC4D6",
   "--bg-red": "#E60023",
   "--bg-green": "#6CE5A8",
@@ -24,7 +24,7 @@ const themeVars: CSSProperties = {
 export function DesktopStageLayout({ left, right, rightMode = "framed" }: DesktopStageLayoutProps) {
   return (
     <div
-      style={themeVars}
+      style={stageThemeVars}
       className="m-0 flex h-screen w-screen items-center justify-center overflow-hidden bg-[#E0E0E0] p-0 font-['Helvetica_Neue','Helvetica','Arial',sans-serif] antialiased"
     >
       <div className="absolute inset-0 grid h-full w-full grid-cols-2">
