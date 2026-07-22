@@ -1,6 +1,36 @@
 {
-  "generatedAt": "2026-07-15T05:56:41Z",
+  "generatedAt": "2026-07-22T02:18:50Z",
   "releases": [
+    {
+      "version": "v0.1.25",
+      "date": "2026-07-22T10:12:17+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.25"
+        },
+        {
+          "type": "new",
+          "text": "add bulk clear actions"
+        },
+        {
+          "type": "new",
+          "text": "add responsive mobile homepage"
+        },
+        {
+          "type": "other",
+          "text": "sync website data after publishing"
+        },
+        {
+          "type": "fix",
+          "text": "keep homepage preview in workspace view"
+        },
+        {
+          "type": "fix",
+          "text": "support Vite and Next production detection"
+        }
+      ]
+    },
     {
       "version": "v0.1.24",
       "date": "2026-07-15T13:50:13+08:00",
