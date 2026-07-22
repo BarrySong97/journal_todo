@@ -282,6 +282,11 @@ interface JournalStore {
   toggleImportant: (todoId: string) => void
   removeFromImportant: (todoId: string) => ImportantItemState | undefined
   restoreImportantItem: (todoId: string, previous?: ImportantItemState) => void
+  clearImportantItems: (mode: "incomplete" | "completed" | "all") => {
+    count: number
+    previous: Record<string, ImportantItemState | undefined>
+  }
+  restoreImportantItems: (previous: Record<string, ImportantItemState | undefined>) => void
   reorderImportant: (activeId: string, overId: string) => void
   moveImportant: (todoId: string, direction: "up" | "down") => void
   updateTodoTextById: (todoId: string, text: string) => void
@@ -1285,6 +1290,88 @@ export const useJournalStore = create<JournalStore>()(
           delete state.importantItems[todoId]
         })
         persistImportantDelete(todoId)
+      },
+
+      clearImportantItems: (mode: "incomplete" | "completed" | "all") => {
+        const { workspaces, importantItems } = get()
+        const todos = buildImportantTree(workspaces, importantItems).todos
+        const targets = todos.filter((todo) =>
+          mode === "all"
+            ? true
+            : mode === "completed"
+              ? todo.status === "done"
+              : todo.status !== "done"
+        )
+        if (targets.length === 0) return { count: 0, previous: {} }
+
+        const now = new Date()
+        const targetIds = new Set(targets.map((todo) => todo.id))
+        const changedIds = new Set(targetIds)
+
+        // When only one status is cleared, keep the first non-matching child of
+        // each removed branch visible by promoting it to an explicit Important root.
+        if (mode !== "all") {
+          for (const todo of todos) {
+            if (!targetIds.has(todo.id) && todo.parentId && targetIds.has(todo.parentId)) {
+              changedIds.add(todo.id)
+            }
+          }
+        }
+
+        const previous: Record<string, ImportantItemState | undefined> = {}
+        const updates = new Map<string, ImportantItemState | undefined>()
+        for (const todoId of changedIds) {
+          const existing = importantItems[todoId]
+          previous[todoId] = existing ? { ...existing } : undefined
+
+          if (mode === "all") {
+            updates.set(todoId, undefined)
+            continue
+          }
+
+          const isTarget = targetIds.has(todoId)
+          updates.set(todoId, {
+            todoId,
+            isPinned: !isTarget,
+            isExcluded: isTarget,
+            sortOrder: existing?.sortOrder ?? null,
+            sortParentId: existing?.sortParentId ?? null,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+          })
+        }
+
+        set((state) => {
+          for (const [todoId, item] of updates) {
+            if (item) state.importantItems[todoId] = item
+            else delete state.importantItems[todoId]
+          }
+        })
+        for (const [todoId, item] of updates) {
+          if (item) persistImportantItem(item)
+          else persistImportantDelete(todoId)
+        }
+
+        return { count: targets.length, previous }
+      },
+
+      restoreImportantItems: (previous: Record<string, ImportantItemState | undefined>) => {
+        const restoredAt = new Date()
+        const updates = new Map<string, ImportantItemState | undefined>()
+        for (const [todoId, item] of Object.entries(previous)) {
+          updates.set(todoId, item ? { ...item, updatedAt: restoredAt } : undefined)
+        }
+
+        set((state) => {
+          for (const [todoId, item] of updates) {
+            if (item) state.importantItems[todoId] = item
+            else delete state.importantItems[todoId]
+          }
+        })
+        for (const [todoId, item] of updates) {
+          if (item) persistImportantItem(item)
+          else persistImportantDelete(todoId)
+        }
       },
 
       reorderImportant: (activeId: string, overId: string) => {

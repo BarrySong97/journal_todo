@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react"
 import { useRef } from "react"
 import type { CSSProperties } from "react"
-import { Toaster } from "@journal-todo/ui"
+import { Toaster, TooltipProvider } from "@journal-todo/ui"
 import { DateNavigation } from "./components/journal/DateNavigation"
 import { JournalApp } from "./components/journal/JournalApp"
+import { ImportantActions } from "./components/journal/ImportantActions"
 import { useJournal } from "./hooks/useJournal"
 import { isMeaningfulTodo } from "./lib/utils/todoFilters"
 
@@ -113,7 +114,8 @@ export function AppTSX({
   }, [onReady])
 
   return (
-    <div className="h-full overflow-hidden flex flex-col bg-background">
+    <TooltipProvider>
+      <div className="h-full overflow-hidden flex flex-col bg-background">
       <header className="flex items-center h-9" style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
         {effectiveIsWide ? (
           <>
@@ -121,14 +123,18 @@ export function AppTSX({
               <DateNavigation />
             </div>
             <div className="h-full w-px bg-border" />
-            <div className="flex flex-1 items-center justify-center text-xs font-medium text-muted-foreground">
+            <div className="relative flex flex-1 items-center justify-center text-xs font-medium text-muted-foreground">
               Important
+              <ImportantActions />
             </div>
           </>
         ) : narrowView === "workspace" ? (
           <DateNavigation />
         ) : (
-          <div className="px-3 text-xs font-medium text-muted-foreground">Important</div>
+          <div className="relative flex h-full flex-1 items-center justify-center text-xs font-medium text-muted-foreground">
+            Important
+            <ImportantActions />
+          </div>
         )}
       </header>
       <JournalApp
@@ -139,7 +145,8 @@ export function AppTSX({
         onSplitRatioChange={updateSplitRatio}
       />
       <Toaster />
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
 

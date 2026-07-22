@@ -32,6 +32,8 @@ export function useJournal() {
   const toggleImportant = useJournalStore((state) => state.toggleImportant)
   const removeFromImportant = useJournalStore((state) => state.removeFromImportant)
   const restoreImportantItem = useJournalStore((state) => state.restoreImportantItem)
+  const clearImportantItems = useJournalStore((state) => state.clearImportantItems)
+  const restoreImportantItems = useJournalStore((state) => state.restoreImportantItems)
   const reorderImportant = useJournalStore((state) => state.reorderImportant)
   const moveImportant = useJournalStore((state) => state.moveImportant)
   const updateTodoTextById = useJournalStore((state) => state.updateTodoTextById)
@@ -77,6 +79,8 @@ export function useJournal() {
     toggleImportant,
     removeFromImportant,
     restoreImportantItem,
+    clearImportantItems,
+    restoreImportantItems,
     reorderImportant,
     moveImportant,
     updateTodoTextById,

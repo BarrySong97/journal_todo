@@ -3,8 +3,9 @@ import { isTauri } from "@journal-todo/shared"
 import { invoke } from "@tauri-apps/api/core"
 import { Titlebar } from "@/components/Titlebar"
 import { JournalApp } from "@/components/journal/JournalApp"
-import { Toaster } from "@journal-todo/ui"
+import { Toaster, TooltipProvider } from "@journal-todo/ui"
 import { DateNavigation } from "./components/journal/DateNavigation"
+import { ImportantActions } from "./components/journal/ImportantActions"
 import { useJournal } from "@/hooks/useJournal"
 
 
@@ -94,7 +95,8 @@ export function App() {
   const isWindows = isDesktop && (desktopPlatform === "windows" || desktopPlatform === "linux" || desktopPlatform === "unknown")
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col ">
+    <TooltipProvider>
+      <div className="h-screen overflow-hidden flex flex-col ">
       <header
         className={isMac ? "flex items-center h-9" : "flex items-center h-9"}
         data-tauri-drag-region
@@ -111,10 +113,11 @@ export function App() {
             </div>
             <div className="h-full w-px bg-border" data-tauri-drag-region />
             <div
-              className="flex flex-1 items-center justify-center text-xs font-medium text-muted-foreground"
+              className="relative flex flex-1 items-center justify-center text-xs font-medium text-muted-foreground"
               data-tauri-drag-region
             >
               Important
+              <ImportantActions />
             </div>
             {isWindows && <Titlebar />}
           </>
@@ -124,7 +127,10 @@ export function App() {
             {narrowView === "workspace" ? (
               <DateNavigation className="ml-auto mr-2" />
             ) : (
-              <div className="ml-auto mr-2 text-xs font-medium text-muted-foreground">Important</div>
+              <div className="relative flex h-full flex-1 items-center justify-center text-xs font-medium text-muted-foreground">
+                Important
+                <ImportantActions />
+              </div>
             )}
           </>
         ) : (
@@ -132,7 +138,10 @@ export function App() {
             {narrowView === "workspace" ? (
               <DateNavigation />
             ) : (
-              <div className="px-3 text-xs font-medium text-muted-foreground">Important</div>
+              <div className="relative flex h-full flex-1 items-center justify-center text-xs font-medium text-muted-foreground">
+                Important
+                <ImportantActions />
+              </div>
             )}
             {isWindows && <Titlebar />}
           </>
@@ -148,7 +157,8 @@ export function App() {
       />
       <Toaster />
 
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
 

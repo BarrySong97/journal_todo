@@ -23,6 +23,7 @@ export * from "./components/ui/switch"
 export * from "./components/ui/simple-toast"
 export * from "./components/ui/sonner"
 export * from "./components/ui/textarea"
+export * from "./components/ui/tooltip"
 export * from "./components/ui/todo-calendar"
 
 // Utilities

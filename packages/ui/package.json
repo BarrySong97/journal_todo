@@ -9,6 +9,9 @@
       "import": "./src/index.ts",
       "types": "./src/index.ts"
     },
+    "./components/*": "./src/components/ui/*.tsx",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./lib/*": "./src/lib/*.ts",
     "./styles": "./src/styles/globals.css"
   },
   "scripts": {

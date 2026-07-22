@@ -538,6 +538,65 @@ describe("journalStore Important actions", () => {
     expect(buildImportantTree(state.workspaces, state.importantItems).todos.map((todo) => todo.id))
       .toEqual(["one", "two"])
   })
+
+  it("clears one completion state without dropping descendants of the other state", () => {
+    const parent = makeTodo("parent", "a0", 0)
+    const completedChild = makeTodo("completed-child", "a1", 1, "parent")
+    completedChild.status = "done"
+    const incompleteGrandchild = makeTodo("incomplete-grandchild", "a2", 2, "completed-child")
+    setStoreState([parent, completedChild, incompleteGrandchild])
+
+    useJournalStore.getState().toggleImportant("parent")
+    const incompleteClear = useJournalStore.getState().clearImportantItems("incomplete")
+    let visible = buildImportantTree(
+      useJournalStore.getState().workspaces,
+      useJournalStore.getState().importantItems
+    ).todos
+    expect(incompleteClear.count).toBe(2)
+    expect(visible.map((todo) => todo.id)).toEqual(["completed-child"])
+
+    useJournalStore.getState().restoreImportantItems(incompleteClear.previous)
+    const completedClear = useJournalStore.getState().clearImportantItems("completed")
+    visible = buildImportantTree(
+      useJournalStore.getState().workspaces,
+      useJournalStore.getState().importantItems
+    ).todos
+    expect(completedClear.count).toBe(1)
+    expect(visible.map((todo) => todo.id)).toEqual(["parent", "incomplete-grandchild"])
+
+    useJournalStore.getState().restoreImportantItems(completedClear.previous)
+    visible = buildImportantTree(
+      useJournalStore.getState().workspaces,
+      useJournalStore.getState().importantItems
+    ).todos
+    expect(visible.map((todo) => todo.id)).toEqual([
+      "parent",
+      "completed-child",
+      "incomplete-grandchild",
+    ])
+  })
+
+  it("clears every Important item and restores the batch", () => {
+    setStoreState([
+      makeTodo("one", "a0", 0),
+      makeTodo("two", "a1", 0),
+    ])
+    useJournalStore.getState().toggleImportant("one")
+    useJournalStore.getState().toggleImportant("two")
+
+    const cleared = useJournalStore.getState().clearImportantItems("all")
+    expect(cleared.count).toBe(2)
+    expect(buildImportantTree(
+      useJournalStore.getState().workspaces,
+      useJournalStore.getState().importantItems
+    ).todos).toEqual([])
+
+    useJournalStore.getState().restoreImportantItems(cleared.previous)
+    expect(buildImportantTree(
+      useJournalStore.getState().workspaces,
+      useJournalStore.getState().importantItems
+    ).todos.map((todo) => todo.id)).toEqual(["one", "two"])
+  })
 })
 
 describe("journalStore paste handling", () => {
