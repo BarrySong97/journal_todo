@@ -440,6 +440,92 @@ describe("journalStore reorder and hierarchy", () => {
   })
 })
 
+describe("journalStore sortTodos", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("moves done items to the bottom while keeping children under their parent", () => {
+    const { dateKey } = setStoreState([
+      makeTodo("p1", "a0", 0, null),
+      { ...makeTodo("p2", "a1", 0, null), status: "done" },
+      makeTodo("c1", "a1V", 1, "p2"),
+      makeTodo("p3", "a2", 0, null),
+    ])
+
+    const count = useJournalStore.getState().sortTodos("incomplete-first", dateKey)
+    expect(count).toBeGreaterThan(0)
+
+    const page = useJournalStore.getState().workspaces["ws-test"].pages[dateKey]
+    expect(sortByOrder(page.todos).map((t) => t.id)).toEqual(["p1", "p3", "p2", "c1"])
+    expect(apiMocks.updateTodo).toHaveBeenCalled()
+  })
+
+  it("moves done items to the top when direction is incomplete-last", () => {
+    const { dateKey } = setStoreState([
+      makeTodo("p1", "a0", 0, null),
+      { ...makeTodo("p2", "a1", 0, null), status: "done" },
+      makeTodo("p3", "a2", 0, null),
+    ])
+
+    useJournalStore.getState().sortTodos("incomplete-last", dateKey)
+
+    const page = useJournalStore.getState().workspaces["ws-test"].pages[dateKey]
+    expect(sortByOrder(page.todos).map((t) => t.id)).toEqual(["p2", "p1", "p3"])
+  })
+
+  it("is a no-op and skips persistence when already sorted", () => {
+    const { dateKey } = setStoreState([
+      makeTodo("p1", "a0", 0, null),
+      makeTodo("p2", "a1", 0, null),
+      { ...makeTodo("p3", "a2", 0, null), status: "done" },
+    ])
+
+    const count = useJournalStore.getState().sortTodos("incomplete-first", dateKey)
+    expect(count).toBe(0)
+    expect(apiMocks.updateTodo).not.toHaveBeenCalled()
+  })
+})
+
+describe("journalStore sortImportant", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("moves done important items to the bottom of their sibling group", () => {
+    setStoreState([
+      makeTodo("p1", "a0", 0, null),
+      { ...makeTodo("p2", "a1", 0, null), status: "done" },
+      makeTodo("p3", "a2", 0, null),
+    ])
+    useJournalStore.setState({
+      importantItems: {
+        p1: { todoId: "p1", isPinned: true, isExcluded: false, sortOrder: null, sortParentId: null, createdAt: new Date(), updatedAt: new Date() },
+        p2: { todoId: "p2", isPinned: true, isExcluded: false, sortOrder: null, sortParentId: null, createdAt: new Date(), updatedAt: new Date() },
+        p3: { todoId: "p3", isPinned: true, isExcluded: false, sortOrder: null, sortParentId: null, createdAt: new Date(), updatedAt: new Date() },
+      },
+    })
+
+    const count = useJournalStore.getState().sortImportant("incomplete-first")
+    expect(count).toBeGreaterThan(0)
+
+    const { workspaces, importantItems } = useJournalStore.getState()
+    const { todos } = buildImportantTree(workspaces, importantItems)
+    expect(todos.map((t) => t.id)).toEqual(["p1", "p3", "p2"])
+    expect(apiMocks.upsertImportantItem).toHaveBeenCalled()
+  })
+})
+
+describe("journalStore allTodosSortDirection", () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it("defaults to date-asc and persists changes made via setAllTodosSortDirection", () => {
+    expect(useJournalStore.getState().allTodosSortDirection).toBe("date-asc")
+
+    useJournalStore.getState().setAllTodosSortDirection("date-desc")
+    expect(useJournalStore.getState().allTodosSortDirection).toBe("date-desc")
+
+    useJournalStore.getState().setAllTodosSortDirection("date-asc")
+    expect(useJournalStore.getState().allTodosSortDirection).toBe("date-asc")
+  })
+})
+
 describe("journalStore Important actions", () => {
   beforeEach(() => vi.clearAllMocks())
 

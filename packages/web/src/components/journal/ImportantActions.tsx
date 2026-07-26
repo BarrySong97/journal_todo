@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@journal-todo/ui"
 import { useJournal } from "@/hooks/useJournal"
 import { buildImportantTree } from "@/lib/utils/importantTree"
+import { SortTodosAction } from "./SortTodosAction"
 
 type ClearMode = "incomplete" | "completed" | "all"
 
@@ -48,6 +49,7 @@ export function ImportantActions() {
 
   return (
     <div className="absolute right-1 flex items-center" style={noDragStyle}>
+      <SortTodosAction scope="important" />
       <Tooltip>
         <TooltipTrigger
           type="button"

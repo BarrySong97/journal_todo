@@ -18,14 +18,14 @@ export interface TodoLocation {
   parentId: string | null
 }
 
-interface SourceNode extends TodoLocation {
+export interface SourceNode extends TodoLocation {
   children: string[]
 }
 
-const compareSourceOrder = (a: SourceNode, b: SourceNode) =>
+export const compareSourceOrder = (a: SourceNode, b: SourceNode) =>
   a.todo.order < b.todo.order ? -1 : a.todo.order > b.todo.order ? 1 : 0
 
-const buildSourceNodes = (workspaces: Record<string, Workspace>) => {
+export const buildSourceNodes = (workspaces: Record<string, Workspace>) => {
   const nodes = new Map<string, SourceNode>()
 
   for (const workspace of Object.values(workspaces)) {

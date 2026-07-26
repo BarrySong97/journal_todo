@@ -14,6 +14,8 @@ const defaultProps = {
   sqlitePath: "/Users/test/.journal-todo/journal.db",
   rolloverIsMove: false,
   onRolloverModeChange: vi.fn(),
+  sortIncompleteFirst: true,
+  onSortModeChange: vi.fn(),
 }
 
 describe("JournalSettingsPopover", () => {
@@ -78,6 +80,57 @@ describe("JournalSettingsPopover", () => {
     expect(screen.getByText("Unavailable")).toBeTruthy()
   })
 
+  it("checks for updates only after the user clicks the version action", () => {
+    const onCheckForUpdates = vi.fn()
+    render(
+      <JournalSettingsPopover
+        {...defaultProps}
+        canCheckForUpdates
+        onCheckForUpdates={onCheckForUpdates}
+      />
+    )
+
+    fireEvent.click(screen.getByTitle("Settings"))
+    expect(onCheckForUpdates).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }))
+    expect(onCheckForUpdates).toHaveBeenCalledTimes(1)
+  })
+
+  it("shows an available version inline and starts the update on click", () => {
+    const onInstallUpdate = vi.fn()
+    render(
+      <JournalSettingsPopover
+        {...defaultProps}
+        canCheckForUpdates
+        updateStatus="available"
+        availableVersion="0.1.12"
+        onInstallUpdate={onInstallUpdate}
+      />
+    )
+
+    fireEvent.click(screen.getByTitle("Settings"))
+    expect(screen.getByText("v0.1.12 available")).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "Update" }))
+    expect(onInstallUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it("renders manual update progress without a toast action", () => {
+    render(
+      <JournalSettingsPopover
+        {...defaultProps}
+        canCheckForUpdates
+        updateStatus="downloading"
+        updateProgress={42}
+      />
+    )
+
+    fireEvent.click(screen.getByTitle("Settings"))
+    expect(screen.getByText("Downloading 42%")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Check for updates" })).toBeNull()
+  })
+
   it("shows Roll over row with Copy label when rolloverIsMove is false", () => {
     render(<JournalSettingsPopover {...defaultProps} rolloverIsMove={false} />)
     fireEvent.click(screen.getByTitle("Settings"))
@@ -102,7 +155,7 @@ describe("JournalSettingsPopover", () => {
       />
     )
     fireEvent.click(screen.getByTitle("Settings"))
-    const switchInput = screen.getByRole("checkbox")
+    const switchInput = screen.getAllByRole("checkbox")[0]
     // Click the wrapping label to trigger the checkbox change
     fireEvent.click(switchInput.closest("label")!)
     expect(onRolloverModeChange).toHaveBeenCalledWith(true)
@@ -118,9 +171,37 @@ describe("JournalSettingsPopover", () => {
       />
     )
     fireEvent.click(screen.getByTitle("Settings"))
-    const switchInput = screen.getByRole("checkbox")
+    const switchInput = screen.getAllByRole("checkbox")[0]
     // Click the wrapping label to trigger the checkbox change
     fireEvent.click(switchInput.closest("label")!)
     expect(onRolloverModeChange).toHaveBeenCalledWith(false)
+  })
+
+  it("shows Sort row with Incomplete on top label when sortIncompleteFirst is true", () => {
+    render(<JournalSettingsPopover {...defaultProps} sortIncompleteFirst={true} />)
+    fireEvent.click(screen.getByTitle("Settings"))
+    expect(screen.getByText("Sort")).toBeTruthy()
+    expect(screen.getByText("Incomplete on top")).toBeTruthy()
+  })
+
+  it("shows Incomplete on bottom label when sortIncompleteFirst is false", () => {
+    render(<JournalSettingsPopover {...defaultProps} sortIncompleteFirst={false} />)
+    fireEvent.click(screen.getByTitle("Settings"))
+    expect(screen.getByText("Incomplete on bottom")).toBeTruthy()
+  })
+
+  it("calls onSortModeChange(false) when sort switch is toggled off", () => {
+    const onSortModeChange = vi.fn()
+    render(
+      <JournalSettingsPopover
+        {...defaultProps}
+        sortIncompleteFirst={true}
+        onSortModeChange={onSortModeChange}
+      />
+    )
+    fireEvent.click(screen.getByTitle("Settings"))
+    const switchInput = screen.getAllByRole("checkbox")[1]
+    fireEvent.click(switchInput.closest("label")!)
+    expect(onSortModeChange).toHaveBeenCalledWith(false)
   })
 })

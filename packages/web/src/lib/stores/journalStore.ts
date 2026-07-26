@@ -20,6 +20,8 @@ import {
   deleteImportantItem as deleteImportantItemRepo,
 } from "@journal-todo/api"
 import { buildImportantTree, findTodoLocation } from "../utils/importantTree"
+import type { AllTodosSortDirection } from "../utils/allTodosTree"
+import { partitionByStatus, sortTodoTreeOrder, type SortDirection } from "../utils/todoSort"
 
 const extractTags = (text: string) => {
   const matches = text.match(/#[^\s#]+/g) ?? []
@@ -83,6 +85,22 @@ const generateFirstOrder = (): string => {
 }
 
 const MAX_TODO_DEPTH = 3
+
+const SORT_DIRECTION_KEY = "journal-sort-mode"
+
+const getStoredSortDirection = (): SortDirection => {
+  if (typeof window === "undefined") return "incomplete-first"
+  return localStorage.getItem(SORT_DIRECTION_KEY) === "incomplete-last"
+    ? "incomplete-last"
+    : "incomplete-first"
+}
+
+const ALL_TODOS_SORT_DIRECTION_KEY = "journal-all-todos-sort-direction"
+
+const getStoredAllTodosSortDirection = (): AllTodosSortDirection => {
+  if (typeof window === "undefined") return "date-asc"
+  return localStorage.getItem(ALL_TODOS_SORT_DIRECTION_KEY) === "date-desc" ? "date-desc" : "date-asc"
+}
 
 const deriveParentMap = (items: TodoItem[]): Map<string, string | null> => {
   const parentMap = new Map<string, string | null>()
@@ -289,6 +307,12 @@ interface JournalStore {
   restoreImportantItems: (previous: Record<string, ImportantItemState | undefined>) => void
   reorderImportant: (activeId: string, overId: string) => void
   moveImportant: (todoId: string, direction: "up" | "down") => void
+  sortDirection: SortDirection
+  setSortDirection: (direction: SortDirection) => void
+  allTodosSortDirection: AllTodosSortDirection
+  setAllTodosSortDirection: (direction: AllTodosSortDirection) => void
+  sortTodos: (direction: SortDirection, dateKey?: string, workspaceId?: string) => number
+  sortImportant: (direction: SortDirection) => number
   updateTodoTextById: (todoId: string, text: string) => void
   toggleTodoById: (todoId: string) => boolean
 }
@@ -352,6 +376,41 @@ export const useJournalStore = create<JournalStore>()(
 
     initializeFromRepository().catch(console.error)
 
+    const reorderPage = (
+      targetWorkspaceId: string,
+      targetDateKey: string,
+      reorderFn: (todos: TodoItem[]) => TodoItem[]
+    ): number => {
+      const page = get().workspaces[targetWorkspaceId]?.pages[targetDateKey]
+      if (!page || page.todos.length === 0) return 0
+
+      const original = [...page.todos].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0))
+      const reordered = reorderFn(page.todos)
+      const isUnchanged = original.every((todo, index) => todo.id === reordered[index].id)
+      if (isUnchanged) return 0
+
+      const orders = generateNKeysBetween(null, null, reordered.length)
+      const orderMap = new Map(reordered.map((todo, index) => [todo.id, orders[index]]))
+      const now = new Date()
+
+      set((state) => {
+        const p = state.workspaces[targetWorkspaceId]?.pages[targetDateKey]
+        if (!p) return
+        p.todos = p.todos.map((todo) => {
+          const nextOrder = orderMap.get(todo.id)
+          if (nextOrder === undefined) return todo
+          return { ...todo, order: nextOrder, updatedAt: now }
+        })
+        p.updatedAt = now
+      })
+
+      for (const todo of reordered) {
+        persistTodoUpdate(todo.id, { order: orderMap.get(todo.id)! })
+      }
+
+      return reordered.length
+    }
+
     return {
       // Initial state
       currentWorkspaceId: defaultWorkspace.id,
@@ -361,6 +420,22 @@ export const useJournalStore = create<JournalStore>()(
         [defaultWorkspace.id]: defaultWorkspace,
       },
       importantItems: {},
+      sortDirection: getStoredSortDirection(),
+      allTodosSortDirection: getStoredAllTodosSortDirection(),
+
+      setSortDirection: (direction: SortDirection) => {
+        set({ sortDirection: direction })
+        if (typeof window !== "undefined") {
+          localStorage.setItem(SORT_DIRECTION_KEY, direction)
+        }
+      },
+
+      setAllTodosSortDirection: (direction: AllTodosSortDirection) => {
+        set({ allTodosSortDirection: direction })
+        if (typeof window !== "undefined") {
+          localStorage.setItem(ALL_TODOS_SORT_DIRECTION_KEY, direction)
+        }
+      },
 
       // Workspace actions
       setCurrentWorkspace: (workspaceId: string) => {
@@ -1422,6 +1497,59 @@ export const useJournalStore = create<JournalStore>()(
 
         // Adjacent overId makes reorderImportant perform an exact swap
         get().reorderImportant(todoId, target.id)
+      },
+
+      sortTodos: (direction: SortDirection, dateKey?: string, workspaceId?: string) => {
+        const { currentWorkspaceId, workspaces } = get()
+        const targetWorkspaceId = workspaceId || currentWorkspaceId
+        const workspace = workspaces[targetWorkspaceId]
+        if (!workspace) return 0
+
+        const targetDateKey = dateKey || workspace.currentDateKey
+        return reorderPage(targetWorkspaceId, targetDateKey, (todos) => sortTodoTreeOrder(todos, direction))
+      },
+
+      sortImportant: (direction: SortDirection) => {
+        const { workspaces, importantItems } = get()
+        const { todos } = buildImportantTree(workspaces, importantItems)
+
+        const groups = new Map<string | null, typeof todos>()
+        for (const todo of todos) {
+          const key = todo.parentId
+          const list = groups.get(key)
+          if (list) list.push(todo)
+          else groups.set(key, [todo])
+        }
+
+        const now = new Date()
+        let changedCount = 0
+
+        set((state) => {
+          for (const [parentId, group] of groups) {
+            const reordered = partitionByStatus(group, direction)
+            const isUnchanged = reordered.every((todo, index) => todo.id === group[index].id)
+            if (isUnchanged) continue
+
+            const orders = generateNKeysBetween(null, null, reordered.length)
+            reordered.forEach((todo, index) => {
+              changedCount += 1
+              const existing = state.importantItems[todo.id]
+              const next: ImportantItemState = {
+                todoId: todo.id,
+                isPinned: existing?.isPinned ?? false,
+                isExcluded: existing?.isExcluded ?? false,
+                sortOrder: orders[index],
+                sortParentId: parentId,
+                createdAt: existing?.createdAt ?? now,
+                updatedAt: now,
+              }
+              state.importantItems[todo.id] = next
+              persistImportantItem(next)
+            })
+          }
+        })
+
+        return changedCount
       },
 
       updateTodoTextById: (todoId: string, text: string) => {

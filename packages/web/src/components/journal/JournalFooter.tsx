@@ -46,6 +46,7 @@ import {
 } from "@journal-todo/ui"
 import { JournalSettingsPopover } from "@/components/journal/JournalSettingsPopover"
 import { useJournal } from "@/hooks/useJournal"
+import { useSortMode } from "@/hooks/useSortMode"
 import { useTheme } from "@/hooks/useTheme"
 import {
   APP_AUTHOR,
@@ -73,6 +74,15 @@ const nameSchema = z.object({
 })
 
 type NameFormValues = z.infer<typeof nameSchema>
+
+type ManualUpdateStatus =
+  | "idle"
+  | "checking"
+  | "up-to-date"
+  | "available"
+  | "downloading"
+  | "installing"
+  | "error"
 
 const isEditableTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false
@@ -227,8 +237,12 @@ export function JournalFooter({
   } = useJournal()
 
   const { isDark, toggleTheme } = useTheme()
+  const { direction: sortDirection, setDirection: setSortDirection } = useSortMode()
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [sqlitePath, setSqlitePath] = useState<string | null>(null)
+  const [manualUpdate, setManualUpdate] = useState<Update | null>(null)
+  const [manualUpdateStatus, setManualUpdateStatus] = useState<ManualUpdateStatus>("idle")
+  const [manualUpdateProgress, setManualUpdateProgress] = useState<number | null>(null)
   const [isCommandOpen, setIsCommandOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isRenameOpen, setIsRenameOpen] = useState(false)
@@ -422,6 +436,60 @@ export function JournalFooter({
     } catch (error) {
       console.warn("Failed to import SQLite file", error)
       toast.error("Failed to import database. Please verify the file and try again.")
+    }
+  }
+
+  const handleCheckForUpdates = async () => {
+    if (!isTauri() || manualUpdateStatus === "checking" || manualUpdateStatus === "installing") return
+
+    setManualUpdateStatus("checking")
+    setManualUpdateProgress(null)
+    try {
+      const update = await check()
+      setManualUpdate(update)
+      setManualUpdateStatus(update ? "available" : "up-to-date")
+    } catch (error) {
+      console.warn("Manual updater check failed", error)
+      setManualUpdate(null)
+      setManualUpdateStatus("error")
+    }
+  }
+
+  const handleManualInstallUpdate = async () => {
+    if (!manualUpdate || manualUpdateStatus === "downloading" || manualUpdateStatus === "installing") return
+
+    setManualUpdateStatus("downloading")
+    setManualUpdateProgress(null)
+    let downloaded = 0
+    let contentLength = 0
+
+    try {
+      await manualUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          contentLength = event.data.contentLength ?? 0
+          setManualUpdateProgress(0)
+        }
+
+        if (event.event === "Progress") {
+          downloaded += event.data.chunkLength
+          setManualUpdateProgress(
+            contentLength
+              ? Math.min(100, Math.round((downloaded / contentLength) * 100))
+              : null
+          )
+        }
+
+        if (event.event === "Finished") {
+          setManualUpdateStatus("installing")
+          setManualUpdateProgress(100)
+        }
+      })
+
+      setManualUpdateStatus("installing")
+      await relaunch()
+    } catch (error) {
+      console.warn("Manual updater install failed", error)
+      setManualUpdateStatus("error")
     }
   }
 
@@ -745,8 +813,18 @@ export function JournalFooter({
             sqlitePath={sqlitePath}
             rolloverIsMove={rolloverIsMove}
             onRolloverModeChange={onRolloverModeChange}
+            sortIncompleteFirst={sortDirection === "incomplete-first"}
+            onSortModeChange={(incompleteFirst) =>
+              setSortDirection(incompleteFirst ? "incomplete-first" : "incomplete-last")
+            }
             onRevealSqlitePath={handleRevealSqlitePath}
             onImportSqlitePath={handleImportSqlitePath}
+            canCheckForUpdates={isTauri()}
+            updateStatus={manualUpdateStatus}
+            availableVersion={manualUpdate?.version ?? null}
+            updateProgress={manualUpdateProgress}
+            onCheckForUpdates={handleCheckForUpdates}
+            onInstallUpdate={handleManualInstallUpdate}
           />
           <button
             onClick={toggleTheme}

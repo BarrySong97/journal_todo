@@ -1,0 +1,4 @@
+export const ALL_TODOS_PANE_WIDTH = 320
+export const ALL_TODOS_PANE_MIN_WIDTH = 280
+export const ALL_TODOS_PANE_MAX_WIDTH = 640
+export const EXTRA_WIDE_BREAKPOINT = 1100

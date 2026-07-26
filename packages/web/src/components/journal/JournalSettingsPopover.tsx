@@ -22,8 +22,16 @@ export interface JournalSettingsPopoverProps {
   sqlitePath: string | null
   rolloverIsMove: boolean
   onRolloverModeChange: (isMove: boolean) => void
+  sortIncompleteFirst: boolean
+  onSortModeChange: (incompleteFirst: boolean) => void
   onRevealSqlitePath?: () => void | Promise<void>
   onImportSqlitePath?: () => void | Promise<void>
+  canCheckForUpdates?: boolean
+  updateStatus?: "idle" | "checking" | "up-to-date" | "available" | "downloading" | "installing" | "error"
+  availableVersion?: string | null
+  updateProgress?: number | null
+  onCheckForUpdates?: () => void | Promise<void>
+  onInstallUpdate?: () => void | Promise<void>
 }
 
 export function JournalSettingsPopover({
@@ -33,8 +41,16 @@ export function JournalSettingsPopover({
   sqlitePath,
   rolloverIsMove,
   onRolloverModeChange,
+  sortIncompleteFirst,
+  onSortModeChange,
   onRevealSqlitePath,
   onImportSqlitePath,
+  canCheckForUpdates = false,
+  updateStatus = "idle",
+  availableVersion,
+  updateProgress,
+  onCheckForUpdates,
+  onInstallUpdate,
 }: JournalSettingsPopoverProps) {
   const sqliteFileName = getFileNameFromPath(sqlitePath)
 
@@ -61,9 +77,69 @@ export function JournalSettingsPopover({
             <span>{authorName}</span>
           </div>
           {version && (
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground">Version</span>
-              <span>v{version}</span>
+            <div className="flex items-start justify-between gap-2 text-sm">
+              <span className="pt-0.5 text-muted-foreground">Version</span>
+              <div className="flex flex-col items-end gap-0.5 text-right">
+                <div className="flex items-center gap-2">
+                  <span>v{version}</span>
+                  {canCheckForUpdates && updateStatus === "idle" && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                      onClick={onCheckForUpdates}
+                    >
+                      Check for updates
+                    </button>
+                  )}
+                </div>
+                {canCheckForUpdates && updateStatus === "checking" && (
+                  <span className="text-xs text-muted-foreground">Checking...</span>
+                )}
+                {canCheckForUpdates && updateStatus === "up-to-date" && (
+                  <span className="text-xs text-muted-foreground">
+                    Up to date
+                    <button
+                      type="button"
+                      className="ml-1 underline underline-offset-2 hover:text-foreground"
+                      onClick={onCheckForUpdates}
+                    >
+                      Check again
+                    </button>
+                  </span>
+                )}
+                {canCheckForUpdates && updateStatus === "available" && (
+                  <span className="text-xs text-muted-foreground">
+                    {availableVersion ? `v${availableVersion} available` : "New version available"}
+                    <button
+                      type="button"
+                      className="ml-1 font-medium text-foreground underline underline-offset-2"
+                      onClick={onInstallUpdate}
+                    >
+                      Update
+                    </button>
+                  </span>
+                )}
+                {canCheckForUpdates && updateStatus === "downloading" && (
+                  <span className="text-xs text-muted-foreground">
+                    {updateProgress == null ? "Downloading..." : `Downloading ${updateProgress}%`}
+                  </span>
+                )}
+                {canCheckForUpdates && updateStatus === "installing" && (
+                  <span className="text-xs text-muted-foreground">Installing and restarting...</span>
+                )}
+                {canCheckForUpdates && updateStatus === "error" && (
+                  <span className="text-xs text-destructive">
+                    Update check failed
+                    <button
+                      type="button"
+                      className="ml-1 underline underline-offset-2"
+                      onClick={onCheckForUpdates}
+                    >
+                      Retry
+                    </button>
+                  </span>
+                )}
+              </div>
             </div>
           )}
           <div className="flex items-center justify-between gap-2 text-sm">
@@ -75,6 +151,18 @@ export function JournalSettingsPopover({
               <Switch
                 checked={rolloverIsMove}
                 onCheckedChange={onRolloverModeChange}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-muted-foreground">Sort</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {sortIncompleteFirst ? "Incomplete on top" : "Incomplete on bottom"}
+              </span>
+              <Switch
+                checked={sortIncompleteFirst}
+                onCheckedChange={onSortModeChange}
               />
             </div>
           </div>
