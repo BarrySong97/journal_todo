@@ -110,4 +110,14 @@ describe("buildAllTodosGroups", () => {
     const groups = buildAllTodosGroups(workspaces, "date-desc")
     expect(groups.map((g) => g.dateKey)).toEqual(["2026-07-14", "2026-07-12"])
   })
+
+  it("breaks a same-date tie between workspaces by workspace name, not id", () => {
+    const workspaces = {
+      "zzz-id": workspace("zzz-id", "Alpha", { "2026-07-13": [todo("alpha-todo", "a0", 0)] }),
+      "aaa-id": workspace("aaa-id", "Bravo", { "2026-07-13": [todo("bravo-todo", "a0", 0)] }),
+    }
+
+    const groups = buildAllTodosGroups(workspaces)
+    expect(groups.map((g) => g.workspaceName)).toEqual(["Alpha", "Bravo"])
+  })
 })

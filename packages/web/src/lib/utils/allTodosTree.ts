@@ -50,13 +50,15 @@ export function buildAllTodosGroups(
   }
 
   const pageKeys = [...rootsByPage.keys()].sort((a, b) => {
-    const dateA = a.split("::")[1]
-    const dateB = b.split("::")[1]
+    const [workspaceIdA, dateA] = a.split("::")
+    const [workspaceIdB, dateB] = b.split("::")
     if (dateA !== dateB) {
       const cmp = dateA < dateB ? -1 : 1
       return direction === "date-asc" ? cmp : -cmp
     }
-    return a.localeCompare(b)
+    const nameA = workspaces[workspaceIdA]?.name ?? ""
+    const nameB = workspaces[workspaceIdB]?.name ?? ""
+    return nameA.localeCompare(nameB)
   })
 
   const visit = (node: SourceNode, result: AllTodosItem[]) => {
