@@ -7,7 +7,7 @@ export const SITE_DESCRIPTION =
 
 export const OG_IMAGE = {
   url: "/og-image.png",
-  width: 1200,
-  height: 630,
-  alt: "Journal Todo desktop app showing two journal windows with workspaces and todos",
+  width: 2400,
+  height: 1260,
+  alt: "Journal Todo - Thinking is the only todo, shown next to the app's daily journal list",
 };
