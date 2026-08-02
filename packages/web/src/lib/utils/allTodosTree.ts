@@ -71,7 +71,7 @@ export function buildAllTodosGroups(
     })
     const children = node.children
       .map((id) => nodes.get(id))
-      .filter((child): child is SourceNode => Boolean(child) && included.has(child.todo.id))
+      .filter((child): child is SourceNode => child !== undefined && included.has(child.todo.id))
       .sort(compareSourceOrder)
     for (const child of children) visit(child, result)
   }

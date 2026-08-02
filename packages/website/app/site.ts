@@ -1,4 +1,4 @@
-export const SITE_URL = "https://flowm-official.vercel.app";
+export const SITE_URL = "https://todo.4real.ltd";
 
 export const SITE_NAME = "Journal Todo";
 
