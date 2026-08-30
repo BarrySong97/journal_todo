@@ -1,6 +1,44 @@
 {
-  "generatedAt": "2026-07-26T03:05:30Z",
+  "generatedAt": "2026-08-30T03:07:45Z",
   "releases": [
+    {
+      "version": "v0.1.27",
+      "date": "2026-08-30T11:01:41+08:00",
+      "items": [
+        {
+          "type": "other",
+          "text": "bump version to v0.1.27"
+        },
+        {
+          "type": "new",
+          "text": "scope All Todos to the current workspace"
+        },
+        {
+          "type": "other",
+          "text": "tune OG image composition"
+        },
+        {
+          "type": "new",
+          "text": "use a homepage screenshot as the OG image"
+        },
+        {
+          "type": "fix",
+          "text": "use todo.4real.ltd as site URL and unblock the build"
+        },
+        {
+          "type": "new",
+          "text": "add OG image and site-wide SEO metadata"
+        },
+        {
+          "type": "fix",
+          "text": "break same-date All Todos ties by workspace name"
+        },
+        {
+          "type": "other",
+          "text": "update release data for v0.1.26"
+        }
+      ]
+    },
     {
       "version": "v0.1.26",
       "date": "2026-07-26T10:51:14+08:00",
