@@ -40,6 +40,8 @@ export function useJournal() {
   const setSortDirection = useJournalStore((state) => state.setSortDirection)
   const allTodosSortDirection = useJournalStore((state) => state.allTodosSortDirection)
   const setAllTodosSortDirection = useJournalStore((state) => state.setAllTodosSortDirection)
+  const allTodosScope = useJournalStore((state) => state.allTodosScope)
+  const setAllTodosScope = useJournalStore((state) => state.setAllTodosScope)
   const sortTodos = useJournalStore((state) => state.sortTodos)
   const sortImportant = useJournalStore((state) => state.sortImportant)
   const updateTodoTextById = useJournalStore((state) => state.updateTodoTextById)
@@ -93,6 +95,8 @@ export function useJournal() {
     setSortDirection,
     allTodosSortDirection,
     setAllTodosSortDirection,
+    allTodosScope,
+    setAllTodosScope,
     sortTodos,
     sortImportant,
     updateTodoTextById,

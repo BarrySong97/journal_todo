@@ -18,6 +18,8 @@ export interface AllTodosGroup {
 
 export type AllTodosSortDirection = "date-asc" | "date-desc"
 
+export type AllTodosScope = "all" | "workspace"
+
 /**
  * Every incomplete, non-blank todo across all workspaces/dates, plus the
  * ancestor chain needed to keep it in context (even if an ancestor is done).

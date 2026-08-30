@@ -6,6 +6,7 @@ import { JournalApp } from "@/components/journal/JournalApp"
 import { Toaster, TooltipProvider } from "@journal-todo/ui"
 import { DateNavigation } from "./components/journal/DateNavigation"
 import { ImportantActions } from "./components/journal/ImportantActions"
+import { ScopeTodosAction } from "./components/journal/ScopeTodosAction"
 import { SortTodosAction } from "./components/journal/SortTodosAction"
 import { useJournal } from "@/hooks/useJournal"
 import {
@@ -166,6 +167,7 @@ export function App() {
                   data-tauri-drag-region
                 >
                   All Todos
+                  <ScopeTodosAction className="absolute right-8" />
                   <SortTodosAction scope="all" className="absolute right-1" />
                 </div>
               </>

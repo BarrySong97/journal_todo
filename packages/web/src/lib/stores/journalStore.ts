@@ -20,7 +20,7 @@ import {
   deleteImportantItem as deleteImportantItemRepo,
 } from "@journal-todo/api"
 import { buildImportantTree, findTodoLocation } from "../utils/importantTree"
-import type { AllTodosSortDirection } from "../utils/allTodosTree"
+import type { AllTodosScope, AllTodosSortDirection } from "../utils/allTodosTree"
 import { partitionByStatus, sortTodoTreeOrder, type SortDirection } from "../utils/todoSort"
 
 const extractTags = (text: string) => {
@@ -96,10 +96,16 @@ const getStoredSortDirection = (): SortDirection => {
 }
 
 const ALL_TODOS_SORT_DIRECTION_KEY = "journal-all-todos-sort-direction"
+const ALL_TODOS_SCOPE_KEY = "journal-all-todos-scope"
 
 const getStoredAllTodosSortDirection = (): AllTodosSortDirection => {
   if (typeof window === "undefined") return "date-asc"
   return localStorage.getItem(ALL_TODOS_SORT_DIRECTION_KEY) === "date-desc" ? "date-desc" : "date-asc"
+}
+
+const getStoredAllTodosScope = (): AllTodosScope => {
+  if (typeof window === "undefined") return "all"
+  return localStorage.getItem(ALL_TODOS_SCOPE_KEY) === "workspace" ? "workspace" : "all"
 }
 
 const deriveParentMap = (items: TodoItem[]): Map<string, string | null> => {
@@ -311,6 +317,8 @@ interface JournalStore {
   setSortDirection: (direction: SortDirection) => void
   allTodosSortDirection: AllTodosSortDirection
   setAllTodosSortDirection: (direction: AllTodosSortDirection) => void
+  allTodosScope: AllTodosScope
+  setAllTodosScope: (scope: AllTodosScope) => void
   sortTodos: (direction: SortDirection, dateKey?: string, workspaceId?: string) => number
   sortImportant: (direction: SortDirection) => number
   updateTodoTextById: (todoId: string, text: string) => void
@@ -422,6 +430,7 @@ export const useJournalStore = create<JournalStore>()(
       importantItems: {},
       sortDirection: getStoredSortDirection(),
       allTodosSortDirection: getStoredAllTodosSortDirection(),
+      allTodosScope: getStoredAllTodosScope(),
 
       setSortDirection: (direction: SortDirection) => {
         set({ sortDirection: direction })
@@ -434,6 +443,13 @@ export const useJournalStore = create<JournalStore>()(
         set({ allTodosSortDirection: direction })
         if (typeof window !== "undefined") {
           localStorage.setItem(ALL_TODOS_SORT_DIRECTION_KEY, direction)
+        }
+      },
+
+      setAllTodosScope: (scope: AllTodosScope) => {
+        set({ allTodosScope: scope })
+        if (typeof window !== "undefined") {
+          localStorage.setItem(ALL_TODOS_SCOPE_KEY, scope)
         }
       },
 

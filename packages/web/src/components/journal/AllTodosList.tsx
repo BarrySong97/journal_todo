@@ -14,26 +14,55 @@ export function AllTodosList() {
     workspaces,
     importantItems,
     workspaceOrder,
+    currentWorkspaceId,
     updateTodoTextById,
     toggleTodoById,
     toggleImportant,
     allTodosSortDirection,
+    allTodosScope,
+    setAllTodosScope,
   } = useJournal()
 
-  const groups = useMemo(
+  const allGroups = useMemo(
     () => buildAllTodosGroups(workspaces, allTodosSortDirection),
     [workspaces, allTodosSortDirection]
+  )
+  const isScoped = allTodosScope === "workspace" && workspaceOrder.length > 1
+  const groups = useMemo(
+    () => (isScoped ? allGroups.filter((group) => group.workspaceId === currentWorkspaceId) : allGroups),
+    [allGroups, isScoped, currentWorkspaceId]
+  )
+  const hiddenCount = useMemo(
+    () =>
+      isScoped
+        ? allGroups.reduce(
+            (sum, group) => (group.workspaceId === currentWorkspaceId ? sum : sum + group.todos.length),
+            0
+          )
+        : 0,
+    [allGroups, isScoped, currentWorkspaceId]
   )
   const importanceStates = useMemo(
     () => buildImportantTree(workspaces, importantItems).states,
     [workspaces, importantItems]
   )
-  const showWorkspaceLabel = workspaceOrder.length > 1
+  const showWorkspaceLabel = !isScoped && workspaceOrder.length > 1
+
+  const hiddenNotice = hiddenCount > 0 && (
+    <button
+      type="button"
+      onClick={() => setAllTodosScope("all")}
+      className="w-full px-3 py-2 text-left text-xs text-muted-foreground underline-offset-2 hover:underline"
+    >
+      {hiddenCount} more in other workspaces
+    </button>
+  )
 
   if (groups.length === 0) {
     return (
-      <div data-pane="all-todos" className="px-5 py-12 text-center text-sm text-muted-foreground">
-        Nothing left to do.
+      <div data-pane="all-todos" className="px-2 pb-8">
+        <div className="px-3 py-12 text-center text-sm text-muted-foreground">Nothing left to do.</div>
+        {hiddenNotice}
       </div>
     )
   }
@@ -69,6 +98,7 @@ export function AllTodosList() {
           </div>
         </div>
       ))}
+      {hiddenNotice}
     </div>
   )
 }
